@@ -44,7 +44,7 @@ class KortexClient:
 
         self.simulate = simulate
         self.actuator_count = self.base.GetActuatorCount().count
-        self.joint_active = [True, True, True, True, True, False]
+        self.joint_active = [True, True, True, True, True, True]
 
         self.calibrating = False
         self.changing_servoing_mode = False
