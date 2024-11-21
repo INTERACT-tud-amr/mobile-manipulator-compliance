@@ -54,6 +54,10 @@ class Controller:
         self.gain_pos_MAX = 1
         self.K_rot = 0.5
         self.gain_rot_MAX = 0.5
+        
+    def reset_param_cartesian_impedance(self, Kd: np.ndarray, Dd: np.ndarray) -> None:
+        self.Kd = Kd
+        self.Dd = Dd
 
     def toggle(self, name: str) -> None:
         """Toggle controller states."""

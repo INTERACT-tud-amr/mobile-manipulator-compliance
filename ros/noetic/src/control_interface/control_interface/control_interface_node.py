@@ -19,7 +19,7 @@ from compliant_control.kinova.kortex_client_simulation import KortexClientSimula
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
-
+from control_interface.cfg import CartesianComplianceConfig
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
 PUBLISH_RATE = 100
@@ -31,6 +31,7 @@ class ControlInterfaceNode:
 
     def __init__(self, args) -> None:
         rospy.init_node("control_interface_node")
+        self.srv = Server(CartesianComplianceConfig, self.reconfigure_callback)
         self.simulate = "--simulate" in args
 
         self.pub_fdbk = rospy.Publisher("/feedback", Ufdbk, queue_size=10)
@@ -47,6 +48,24 @@ class ControlInterfaceNode:
             self.start_simulation()
         else:
             self.start_robot()
+
+    def reconfigure_callback(self, config, level):
+        rospy.loginfo("Reconfigure Request: {stiffness_x}, {stiffness_y}, {stiffness_z}, {stiffness_vx}, {stiffness_vy}, {stiffness_vz}".format(**config))
+        # Update the stiffness parameters of your Cartesian compliance controller
+        self.update_stiffness(config)
+        return config
+    
+    def update_stiffness(self, config):
+        # Implement the logic to update the stiffness parameters
+        self.stiffness_x = config['stiffness_x']
+        self.stiffness_y = config['stiffness_y']
+        self.stiffness_z = config['stiffness_z']
+        self.stiffness_vx = config['stiffness_vx']
+        self.stiffness_vy = config['stiffness_vy']
+        self.stiffness_vz = config['stiffness_vz']
+        self.state.controller.reset_param_cartesian_impedance(
+            Kd=np.array([self.stiffness_x, self.stiffness_y, self.stiffness_z]),
+            Dd=np.array([self.stiffness_vx, self.stiffness_vy, self.stiffness_vz]))
 
     def start_threads(self) -> None:
         """Start the threads."""
