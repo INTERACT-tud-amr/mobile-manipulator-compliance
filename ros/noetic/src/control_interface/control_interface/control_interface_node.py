@@ -9,13 +9,13 @@ from threading import Thread
 import numpy as np
 
 from compliant_control.control.state import State
-from compliant_control.mujoco.simulation import Simulation
+# from compliant_control.mujoco.simulation import Simulation
 
 from compliant_control.dingo.dingo_driver import DingoDriver
-from compliant_control.dingo.dingo_driver_simulation import DingoDriverSimulation
+# from compliant_control.dingo.dingo_driver_simulation import DingoDriverSimulation
 
 from compliant_control.kinova.kortex_client import KortexClient
-from compliant_control.kinova.kortex_client_simulation import KortexClientSimulation
+# from compliant_control.kinova.kortex_client_simulation import KortexClientSimulation
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
