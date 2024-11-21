@@ -4,7 +4,7 @@ import os
 import time
 import signal
 import sys
-
+from std_msgs.msg import Float32MultiArray
 from threading import Thread
 import numpy as np
 
@@ -19,7 +19,6 @@ from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
-from control_interface.cfg import CartesianComplianceConfig
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
 PUBLISH_RATE = 100
@@ -31,7 +30,6 @@ class ControlInterfaceNode:
 
     def __init__(self, args) -> None:
         rospy.init_node("control_interface_node")
-        self.srv = Server(CartesianComplianceConfig, self.reconfigure_callback)
         self.simulate = "--simulate" in args
 
         self.pub_fdbk = rospy.Publisher("/feedback", Ufdbk, queue_size=10)
@@ -40,32 +38,15 @@ class ControlInterfaceNode:
         self.pub_calibration = rospy.Publisher("/calibration", Data, queue_size=10)
         rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
+        rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
 
         self.automove_target = False
         self.state = State(self.simulate)
-
+        
         if self.simulate:
             self.start_simulation()
         else:
             self.start_robot()
-
-    def reconfigure_callback(self, config, level):
-        rospy.loginfo("Reconfigure Request: {stiffness_x}, {stiffness_y}, {stiffness_z}, {stiffness_vx}, {stiffness_vy}, {stiffness_vz}".format(**config))
-        # Update the stiffness parameters of your Cartesian compliance controller
-        self.update_stiffness(config)
-        return config
-    
-    def update_stiffness(self, config):
-        # Implement the logic to update the stiffness parameters
-        self.stiffness_x = config['stiffness_x']
-        self.stiffness_y = config['stiffness_y']
-        self.stiffness_z = config['stiffness_z']
-        self.stiffness_vx = config['stiffness_vx']
-        self.stiffness_vy = config['stiffness_vy']
-        self.stiffness_vz = config['stiffness_vz']
-        self.state.controller.reset_param_cartesian_impedance(
-            Kd=np.array([self.stiffness_x, self.stiffness_y, self.stiffness_z]),
-            Dd=np.array([self.stiffness_vx, self.stiffness_vy, self.stiffness_vz]))
 
     def start_threads(self) -> None:
         """Start the threads."""
@@ -232,6 +213,14 @@ class ControlInterfaceNode:
         self.state.absolute_target = np.array(msg.absolute_target)
         self.state.pos_base = np.array(msg.pos_b)
         self.state.quat_base = np.array(msg.quat_b)
+        
+    def update_stiffness(self, msg: Float32MultiArray) -> None:
+        # """Update the stiffness."""
+        Kd = msg.data[0:3]
+        Dd = msg.data[3:6]
+        self.state.controller.reset_param_cartesian_impedance(
+            Kd=Kd,
+            Dd=Dd)
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""

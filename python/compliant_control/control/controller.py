@@ -38,8 +38,10 @@ class Controller:
 
         # Cartesian impedance:
         self.thr_cart_error = 0.001  # m
-        self.Kd = np.eye(3) * 40
-        self.Dd = np.eye(3) * 3
+        # self.Kd = np.eye(3) * 40
+        # self.Dd = np.eye(3) * 3
+        self.Kd = np.eye(3) * 0.000000001
+        self.Dd = np.eye(3) * 0.000000001
         self.error_cart_MAX = 0.1  # m
         self.thr_dynamic = 0.3  # rad/s
 
