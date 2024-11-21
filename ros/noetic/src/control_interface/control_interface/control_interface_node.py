@@ -4,7 +4,7 @@ import os
 import time
 import signal
 import sys
-
+from std_msgs.msg import Float32MultiArray
 from threading import Thread
 import numpy as np
 
@@ -19,7 +19,6 @@ from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
-
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
 PUBLISH_RATE = 100
@@ -39,10 +38,11 @@ class ControlInterfaceNode:
         self.pub_calibration = rospy.Publisher("/calibration", Data, queue_size=10)
         rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
+        rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
 
         self.automove_target = False
         self.state = State(self.simulate)
-
+        
         if self.simulate:
             self.start_simulation()
         else:
@@ -213,6 +213,14 @@ class ControlInterfaceNode:
         self.state.absolute_target = np.array(msg.absolute_target)
         self.state.pos_base = np.array(msg.pos_b)
         self.state.quat_base = np.array(msg.quat_b)
+        
+    def update_stiffness(self, msg: Float32MultiArray) -> None:
+        # """Update the stiffness."""
+        Kd = msg.data[0:3]
+        Dd = msg.data[3:6]
+        self.state.controller.reset_param_cartesian_impedance(
+            Kd=Kd,
+            Dd=Dd)
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""

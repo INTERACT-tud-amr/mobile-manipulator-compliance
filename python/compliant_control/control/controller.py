@@ -38,8 +38,10 @@ class Controller:
 
         # Cartesian impedance:
         self.thr_cart_error = 0.001  # m
-        self.Kd = np.eye(3) * 40
-        self.Dd = np.eye(3) * 3
+        # self.Kd = np.eye(3) * 40
+        # self.Dd = np.eye(3) * 3
+        self.Kd = np.eye(3) * 0.000000001
+        self.Dd = np.eye(3) * 0.000000001
         self.error_cart_MAX = 0.1  # m
         self.thr_dynamic = 0.3  # rad/s
 
@@ -54,6 +56,10 @@ class Controller:
         self.gain_pos_MAX = 1
         self.K_rot = 0.5
         self.gain_rot_MAX = 0.5
+        
+    def reset_param_cartesian_impedance(self, Kd: np.ndarray, Dd: np.ndarray) -> None:
+        self.Kd = Kd
+        self.Dd = Dd
 
     def toggle(self, name: str) -> None:
         """Toggle controller states."""
