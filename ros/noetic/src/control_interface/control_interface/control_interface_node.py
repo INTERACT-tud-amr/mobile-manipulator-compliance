@@ -7,7 +7,7 @@ import sys
 
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float32MultiArray
+from std_msgs.msg import Float32MultiArray, Bool
 
 from threading import Thread
 import numpy as np
@@ -39,18 +39,35 @@ class ControlInterfaceNode:
         self.pub_current_pose = rospy.Publisher("/current_pose", PoseStamped, queue_size=1)
         self.pub_joint_states = rospy.Publisher("/joint_states", JointState, queue_size=1)
         rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
+        rospy.Subscriber("/make_compliant", Bool, self.make_compliant, queue_size=1)
         rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
         rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
         rospy.Subscriber("/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         
-	self.automove_target = False
+        self.automove_target = False
         self.state = State(self.simulate)
-        self._joint_states = JointState()
+        self._joint_state = JointState()
+        self._joint_state.name = [f'joint_{i}' for i in range(6)]
 
         if self.simulate:
             self.start_simulation()
         else:
             self.start_robot()
+
+    def make_compliant(self, msg: Bool):
+        if msg.data: 
+          self.kinova.pref()
+          rospy.loginfo("Wating to reach pref position.")
+          time.sleep(5)
+          self.kinova.start_LLC()
+          self.kinova.connect_LLC()
+          self.state.controller.toggle('arm')
+        else:
+          self.kinova.disconnect_LLC()
+          self.kinova.stop_LLC()
+          self.kinova.pref()
+          time.sleep(3)
+
 
     def start_threads(self) -> None:
         """Start the threads."""
@@ -100,6 +117,7 @@ class ControlInterfaceNode:
             self.publish_feedback()
             self.publish_record()
             self.publish_pose()
+            self.publish_joint_state()
             time.sleep(1 / PUBLISH_RATE)
 
     def publish_feedback(self) -> None:
@@ -235,15 +253,11 @@ class ControlInterfaceNode:
             self.state.target = self.state.x
         return np.linalg.norm(self.state.target - self.state.x) < D_MAX_RESET
 
-    def desired_pose_target_callback(slf, pose: Pose) -> None:
+    def desired_pose_target_callback(self, pose: Pose) -> None:
         self.state.target = np.array([
           pose.position.x,
           pose.position.y,
           pose.position.z,
-          pose.orientation.w,
-          pose.orientation.x,
-          pose.orientation.y,
-          pose.orientation.z,
         ])
 
     def update_target(self, msg: Utarget) -> None:
@@ -255,11 +269,14 @@ class ControlInterfaceNode:
         
     def update_stiffness(self, msg: Float32MultiArray) -> None:
         # """Update the stiffness."""
-        Kd = msg.data[0:3]
-        Dd = msg.data[3:6]
+        Kd = np.diag(msg.data[0:3])
+        Dd = np.diag(msg.data[3:6])
+        self.kinova.disconnect_LLC()
         self.state.controller.reset_param_cartesian_impedance(
             Kd=Kd,
-            Dd=Dd)
+            Dd=Dd) 
+
+        self.kinova.connect_LLC()
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""
