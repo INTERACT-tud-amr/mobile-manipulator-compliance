@@ -107,16 +107,19 @@ class Controller:
 
     def cartesian_impedance(self) -> np.ndarray:
         """Return the current due to cartesian impedance.."""
-        self.x_e = np.zeros(3)
-        error = self.state.target - self.state.x
+        self.x_e = np.array(self.state.target) - np.array(self.state.x)
+        """
         magnitude = np.linalg.norm(error)
         if magnitude > self.thr_cart_error:
             vector = error / magnitude
             self.x_e = vector * min(self.error_cart_MAX, magnitude)
+        """
         self.dx_e = self.dx_d - self.state.dx
         force = self.Kd @ self.x_e + self.Dd @ self.dx_e
+        force = np.clip(force, np.ones(3) * -20, np.ones(3) * 20)
         torque = self.state.T(force)
-        return torque * self.state.ratios
+        desired_current =  torque * self.state.ratios
+        return desired_current
 
     def null_space_task(self) -> None:
         """Return the current due to the null space task."""
