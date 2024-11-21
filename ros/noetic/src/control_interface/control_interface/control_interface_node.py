@@ -7,6 +7,7 @@ import sys
 
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
+from std_msgs.msg import Float32MultiArray
 
 from threading import Thread
 import numpy as np
@@ -39,9 +40,10 @@ class ControlInterfaceNode:
         self.pub_joint_states = rospy.Publisher("/joint_states", JointState, queue_size=1)
         rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
+        rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
         rospy.Subscriber("/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
-
-        self.automove_target = False
+        
+	self.automove_target = False
         self.state = State(self.simulate)
         self._joint_states = JointState()
 
@@ -88,7 +90,6 @@ class ControlInterfaceNode:
         self.calibration.log = rospy.loginfo
         self.start_threads()
         self.simulation.start()
-
 
     def start_publish_loop(self) -> None:
         """Start a loop that publishes the feedback."""
@@ -251,6 +252,14 @@ class ControlInterfaceNode:
         self.state.absolute_target = np.array(msg.absolute_target)
         self.state.pos_base = np.array(msg.pos_b)
         self.state.quat_base = np.array(msg.quat_b)
+        
+    def update_stiffness(self, msg: Float32MultiArray) -> None:
+        # """Update the stiffness."""
+        Kd = msg.data[0:3]
+        Dd = msg.data[3:6]
+        self.state.controller.reset_param_cartesian_impedance(
+            Kd=Kd,
+            Dd=Dd)
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""
