@@ -61,6 +61,11 @@ class State:
         return np.reshape(self.casadi_x(self.kinova_feedback.q), DIM)
 
     @property
+    def rot(self) -> np.ndarray:
+        """Rotation matrix of the end-effector."""
+        return np.reshape(self.casadi_rot(self.kinova_feedback.q), (DIM, DIM))
+
+    @property
     def dx(self) -> np.ndarray:
         """Velocity of the end-effector."""
         return np.reshape(
