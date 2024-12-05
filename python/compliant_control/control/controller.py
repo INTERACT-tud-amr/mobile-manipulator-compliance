@@ -56,6 +56,10 @@ class Controller:
         self.gain_pos_MAX = 1
         self.K_rot = 0.5
         self.gain_rot_MAX = 0.5
+
+        # joint limits
+        self.joint_limits_upper = np.deg2rad([154.1, 120.0, 150.1, 149, 145, 149]) 
+        self.joint_limits_lower = -1 * self.joint_limits_upper
         
     def reset_param_cartesian_impedance(self, Kd: np.ndarray, Dd: np.ndarray) -> None:
         self.Kd = Kd
@@ -87,7 +91,9 @@ class Controller:
         """Update the command of the robot."""
         current = np.zeros(JOINTS)
         if self.imp_arm:
-            current += self.cartesian_impedance()
+            impedance_torque = self.cartesian_impedance()
+            limit_torque = self.joint_limit_repulsion()
+            current += (impedance_torque + limit_torque) * self.state.ratios
             if self.comp_fric:
                 current += self.compensate_friction_in_impedance_mode(current)
             if self.imp_null:
@@ -101,6 +107,7 @@ class Controller:
             current += self.compensate_gravity()
             self.joint_commands = current
 
+
     def compensate_gravity(self) -> np.ndarray:
         """Return the current due to gravity compensation."""
         return self.state.g * self.state.ratios
@@ -108,18 +115,26 @@ class Controller:
     def cartesian_impedance(self) -> np.ndarray:
         """Return the current due to cartesian impedance.."""
         self.x_e = np.array(self.state.target) - np.array(self.state.x)
-        """
-        magnitude = np.linalg.norm(error)
-        if magnitude > self.thr_cart_error:
-            vector = error / magnitude
-            self.x_e = vector * min(self.error_cart_MAX, magnitude)
-        """
         self.dx_e = self.dx_d - self.state.dx
         force = self.Kd @ self.x_e + self.Dd @ self.dx_e
         force = np.clip(force, np.ones(3) * -20, np.ones(3) * 20)
         torque = self.state.T(force)
-        desired_current =  torque * self.state.ratios
-        return desired_current
+        return torque
+
+
+    def joint_limit_repulsion(self) -> np.ndarray:
+        repulsive_torque = np.zeros(6)
+        magnitude = 1
+        threshold = 0.2
+        steepness = 0.1
+        for i, q_i in enumerate(self.state.kinova_feedback.q):
+            upper_bound = self.joint_limits_upper[i] - threshold
+            lower_bound = self.joint_limits_lower[i] + threshold
+            if q_i > upper_bound:
+                repulsive_torque[i] = -magnitude * (np.exp((q_i - upper_bound)/steepness) - 1)
+            elif q_i < lower_bound:
+                repulsive_torque[i] = magnitude * (np.exp((lower_bound - q_i)/steepness) - 1)
+        return repulsive_torque
 
     def null_space_task(self) -> None:
         """Return the current due to the null space task."""
