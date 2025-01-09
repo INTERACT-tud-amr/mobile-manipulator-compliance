@@ -2,8 +2,10 @@ import rospy
 import time
 import pickle
 import sys
-from pynput.keyboard import Listener, KeyCode
-from user_interface_msg.msg import Record
+import os
+from user_interface_msg.msg import Record, Ufdbk
+from sensor_msgs.msg import Joy
+from std_msgs.msg import Bool
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
@@ -15,81 +17,100 @@ class StateRecorder:
         self.save_id = save_id
         self.start = False
         self.end = False
+        self.mode = "Unknown"
         self.q, self.q_dot, self.time_prev = None, None, None
         self.x_pos, self.x_orient = None, None
-        self.q_history, self.q_dot_history, self.delta_t_history = [], [], []
-        self.x_pos_history, self.x_orient_history = [], []
-        
-        #Start keyboard listener
-        self.listener = Listener(on_press=self._on_press)
-        self.listener.start()
+        self.q_history, self.q_dot_history, self.time_history= [], [], []
+        self.x_pos_history, self.x_quat_history, self.base_pos_history, self.base_quat_history = [], [], [], []
+        self.relative_target_history, self.absolute_target_history = [], []
+        self.joystick_data = None
         
         #Create ROS subscriber
-        # rospy.Subscriber('/joint_states', JointState, self._callback_joint_states, queue_size=10)
-        rospy.Subscriber('/record', Record, self._callback_state, queue_size=10)
+        rospy.Subscriber('%s/compliant/record' % robot_name, Record, self._callback_state, queue_size=10)
+        rospy.Subscriber('%s/compliant/feedback' % robot_name, Ufdbk, self._callback_feedback_mode, queue_size=10)
+        rospy.Subscriber('%s/bluetooth_teleop/joy' % robot_name, Joy, self._callback_joystick, queue_size=10)
+        self.pub_mode = rospy.Publisher("%s/compliant/make_compliant" % robot_name, Bool, queue_size=1)
         
-    def _callback_joint_states(self, data):
+    def _callback_state(self, data):
         self.q = data.pos_q
+        self.q_dot = data.vel_q
         self.x_pos = data.pos_x
-        # self.q_dot = data.velocity
+        self.x_quat = data.quat_x
+        self.base_pos = data.pos_b
+        self.base_quat = data.quat_b
+        self.time = data.time
+        self.relative_target = data.relative_target
+        self.absolute_target = data.absolute_target
         
-    # def _callback_ee_pose(self, data):
-    #     self.x_pos = data.pos_x
-    #     self.x_orient = data.pose.orientation
-        
-    def _on_press(self, key):
-        # This function runs on the background and checks if a keyboard key was pressed
-        if key == KeyCode.from_char('s'):
+    def _callback_feedback_mode(self, data):
+        self.mode = data.mode
+    
+    def _callback_joystick(self, data):
+        if data.buttons[3] and self.start == False:
             self.start = True
-            print('Recording started.')
-        elif key == KeyCode.from_char('e'):
-            self.end = True
-            print('Recording ended.')
-
-    def _get_delta_t(self):
-        # Initialize previous time
-        if self.time_prev is None:
-            self.time_prev = time.perf_counter()
-
-        # Get delta t
-        delta_t = time.perf_counter() - self.time_prev
-
-        # Update previous time
-        self.time_prev = time.perf_counter()
-
-        return delta_t
+            print("recording started")
+        if data.buttons[0] and self.end == False:
+            self.end = True 
+            print("recording ended")
     
     def _append_state(self):
         self.q_history.append(self.q)
         self.q_dot_history.append(self.q_dot)
         self.x_pos_history.append(self.x_pos)
-        self.x_orient_history.append(self.x_orient)
-        self.delta_t_history.append(self._get_delta_t())
+        self.x_quat_history.append(self.x_quat)
+        self.base_pos_history.append(self.base_pos)
+        self.base_quat_history.append(self.base_quat)
+        self.time_history.append(self.time)
+        self.relative_target_history.append(self.relative_target)
+        self.absolute_target_history.append(self.absolute_target)
         
     def _save_trajectory(self):
         #Create dictionary
-        trajectory = {"pos_q": self.q_history,
+        trajectory = {"q": self.q_history,
                       "q_dot": self.q_dot_history,
-                      "delta_t": self.delta_t_history}
+                      "x_pos_history": self.x_pos_history,
+                      "x_quat_history": self.x_quat_history,
+                      "base_pos_history": self.base_pos_history,
+                      "base_quat_history": self.base_quat_history,
+                      "time": self.time_history,
+                      "relative_target_history": self.relative_target_history,
+                      "absolute_target_history": self.absolute_target_history}
         #Save dictionary
-        filename = "joint_state_" + self.save_id + ".pk"
-        with open(filename, 'wb') as file:
+        file_name = "recording_demonstration_" + self.save_id + ".pk"
+        folder_path = "demonstrations"
+        file_path = os.path.join(folder_path, file_name)
+        if not os.path.exists(folder_path):
+            os.makedirs(folder_path)
+            print(f"Folder '{folder_path}' created.")
+        with open(file_path, 'wb') as file:
             pickle.dump(trajectory, file)
             
     def run(self):
+        # check if compliant mode is activated, otherwise active:
+        if self.mode != "LLC_task":
+            print("Making the robot compliant, do not press any keys!!")
+            mode = Bool()
+            mode.data = True
+            self.pub_mode.publish(mode)
+            time.sleep(10)
+            print("You can press keys now!!!")
+        
         if self.start:
             #Append state to trajectory
             self._append_state()
             
         if self.end:
+            mode = Bool()
+            mode.data = False
+            self.pub_mode.publish(mode)
             #Save trajectory and exit
-            self.save_trajectory()
+            self._save_trajectory()
             exit()
         
     
 if __name__ == '__main__':
     rospy.init_node('state_recorder')
-    state_recorder = StateRecorder(ROBOT, save_id=sys.argv[2])
+    state_recorder = StateRecorder(sys.argv[1], save_id=sys.argv[2])
     rate = rospy.Rate(100)
     rospy.sleep(0.1)
     while not rospy.is_shutdown():

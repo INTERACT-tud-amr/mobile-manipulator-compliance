@@ -31,17 +31,17 @@ class ControlInterfaceNode:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
 
-        self.pub_fdbk = rospy.Publisher("/feedback", Ufdbk, queue_size=10)
-        self.pub_state = rospy.Publisher("/state", Ustate, queue_size=10)
-        self.pub_record = rospy.Publisher("/record", Record, queue_size=10)
-        self.pub_calibration = rospy.Publisher("/calibration", Data, queue_size=10)
-        self.pub_current_pose = rospy.Publisher("/current_pose", PoseStamped, queue_size=1)
-        self.pub_joint_states = rospy.Publisher("/joint_states", JointState, queue_size=1)
-        rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
-        rospy.Subscriber("/make_compliant", Bool, self.make_compliant, queue_size=1)
-        rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
-        rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
-        rospy.Subscriber("/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
+        self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
+        self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
+        self.pub_record = rospy.Publisher("compliant/record", Record, queue_size=10)
+        self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
+        self.pub_current_pose = rospy.Publisher("compliant/current_pose", PoseStamped, queue_size=1)
+        self.pub_joint_states = rospy.Publisher("compliant/joint_states", JointState, queue_size=1)
+        rospy.Subscriber("compliant/command", Ucmd, self.handle_input, queue_size=10)
+        rospy.Subscriber("compliant/make_compliant", Bool, self.make_compliant, queue_size=1)
+        rospy.Subscriber("compliant/target", Utarget, self.update_target, queue_size=10)
+        rospy.Subscriber("compliant/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
+        rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -131,6 +131,7 @@ class ControlInterfaceNode:
         feedback.dingo_tor = list(self.state.dingo_feedback.c)
         feedback.dingo_rate = self.dingo.rate_counter.rate
         feedback.controller_rate = self.state.controller.rate_counter.rate
+        feedback.mode = self.kinova.mode
         self.pub_fdbk.publish(feedback)
 
     def publish_joint_state(self):
@@ -245,8 +246,6 @@ class ControlInterfaceNode:
         state.ratio = list(self.state.ratios)
         state.friction = list(self.state.frictions)
         state.automove_target = self.automove_target
-        
-        print("state quaternion ", self.state.quat)
 
         self.pub_state.publish(state)
 
