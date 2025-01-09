@@ -9,7 +9,9 @@ from std_msgs.msg import Bool
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
-This script has to be executed from a laptop, as it requires a keyboard press.
+Use the buttons on the dinova controller to start and stop a recording:
+- triangle button: start recording
+- cross button: stop recording
 """
 
 class StateRecorder:
@@ -46,10 +48,10 @@ class StateRecorder:
         self.mode = data.mode
     
     def _callback_joystick(self, data):
-        if data.buttons[3] and self.start == False:
+        if data.buttons[3] and self.start == False: #triangle button
             self.start = True
             print("recording started")
-        if data.buttons[0] and self.end == False:
+        if data.buttons[0] and self.end == False: #cross button
             self.end = True 
             print("recording ended")
     
@@ -92,7 +94,7 @@ class StateRecorder:
             mode = Bool()
             mode.data = True
             self.pub_mode.publish(mode)
-            time.sleep(10)
+            time.sleep(15)
             print("You can press keys now!!!")
         
         if self.start:

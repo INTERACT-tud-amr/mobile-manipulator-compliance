@@ -6,6 +6,9 @@ import pickle
 from std_msgs.msg import Float64MultiArray
 """
 This script is only tested using the "normal" dinova controller (non-compliant controller) at the moment!!
+
+has to be run beforehand:
+rosservice call /dingo2/kinova/change_to_HLC_position
 """
 
 class PlaybackRecording:
@@ -16,12 +19,14 @@ class PlaybackRecording:
         self.q_list = []
         self.load_recording(file_name_recording)
         
-        self.pub_kinova_command = rospy.Publisher("%s/kinova/command" % robot_name, Float64MultiArray, queue_size=1)
+        self.pub_kinova_command = rospy.Publisher("%s/kinovaaa/command" % robot_name, Float64MultiArray, queue_size=1)
         
         # change from velocity control mode to position control mode:
+        print("robot_name:", robot_name)
         service_name = '/%s/kinova/change_to_HLC_position' % robot_name
         rospy.wait_for_service(service_name)
         rospy.sleep(1)
+        print("switched to HLC position mode")
         
     def load_recording(self, file_name_recording):
         file_name = file_name_recording + ".pk"
@@ -30,16 +35,22 @@ class PlaybackRecording:
         with open(pickle_file_path, 'rb') as file:
             self.data_recording = pickle.load(file)
             self.q_list = self.data_recording["q"]
+            self.pos_base = self.data_recording["base_pos_history"]
             
     def send_kinova_sequence(self, q_desired):
         q_desired_msg = Float64MultiArray()
         q_desired_msg.data = q_desired
         self.pub_kinova_command.publish(q_desired_msg)
+        
+    def send_dingo_sequence(self, base_desired):
+        print("base_desired: ", base_desired)
+        
             
     def run(self):
         if len(self.q_list)>0:
             if (len(self.q_list) > self.iter):
                 self.send_kinova_sequence(list(self.q_list[self.iter]))
+                self.send_dingo_sequence(list(self.pos_base[self.iter]))
                 self.iter += 1
                 print("self.iter: ", self.iter)
             else:

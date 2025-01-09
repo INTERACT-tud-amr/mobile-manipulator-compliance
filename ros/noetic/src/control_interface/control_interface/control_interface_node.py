@@ -61,6 +61,7 @@ class ControlInterfaceNode:
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
           self.state.controller.toggle('arm')
+          self.state.controller.toggle('base')
         else:
           self.kinova.disconnect_LLC()
           self.kinova.stop_LLC()
