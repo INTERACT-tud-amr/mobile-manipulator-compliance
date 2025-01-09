@@ -4,7 +4,6 @@ import os
 import time
 import signal
 import sys
-
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32MultiArray, Bool
@@ -57,7 +56,7 @@ class ControlInterfaceNode:
     def make_compliant(self, msg: Bool):
         if msg.data: 
           self.kinova.pref()
-          rospy.loginfo("Wating to reach pref position.")
+          rospy.loginfo("Waiting to reach pref position.")
           time.sleep(5)
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
@@ -161,11 +160,15 @@ class ControlInterfaceNode:
         """Publish data to record."""
         msg = Record()
         msg.pos_x = list(self.state.x)
+        msg.quat_x = list(self.state.quat)
         msg.pos_q = list(self.state.kinova_feedback.q)
+        msg.vel_q = list(self.state.kinova_feedback.dq)
         msg.pos_b = list(self.state.pos_base)
         msg.quat_b = list(self.state.quat_base)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
+        msg.time = [time.perf_counter()]
+        
         self.pub_record.publish(msg)
 
     def publish_calibration(self, data: np.ndarray) -> None:
@@ -243,6 +246,8 @@ class ControlInterfaceNode:
         state.ratio = list(self.state.ratios)
         state.friction = list(self.state.frictions)
         state.automove_target = self.automove_target
+        
+        print("state quaternion ", self.state.quat)
 
         self.pub_state.publish(state)
 

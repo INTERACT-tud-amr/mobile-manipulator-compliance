@@ -3,6 +3,7 @@ import time
 import pickle
 import sys
 from pynput.keyboard import Listener, KeyCode
+from user_interface_msg.msg import Record
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
@@ -24,16 +25,17 @@ class StateRecorder:
         self.listener.start()
         
         #Create ROS subscriber
-        rospy.Subscriber("/joint_states")
-        rospy.Subscriber("/current_pose")
+        # rospy.Subscriber('/joint_states', JointState, self._callback_joint_states, queue_size=10)
+        rospy.Subscriber('/record', Record, self._callback_state, queue_size=10)
         
     def _callback_joint_states(self, data):
-        self.q = data.position
-        self.q_dot = data.velocity
+        self.q = data.pos_q
+        self.x_pos = data.pos_x
+        # self.q_dot = data.velocity
         
-    def _callback_ee_pose(self, data):
-        self.x_pos = data.pose.position
-        self.x_orient = data.pose.orientation
+    # def _callback_ee_pose(self, data):
+    #     self.x_pos = data.pos_x
+    #     self.x_orient = data.pose.orientation
         
     def _on_press(self, key):
         # This function runs on the background and checks if a keyboard key was pressed
@@ -66,7 +68,7 @@ class StateRecorder:
         
     def _save_trajectory(self):
         #Create dictionary
-        trajectory = {"q": self.q_history,
+        trajectory = {"pos_q": self.q_history,
                       "q_dot": self.q_dot_history,
                       "delta_t": self.delta_t_history}
         #Save dictionary
