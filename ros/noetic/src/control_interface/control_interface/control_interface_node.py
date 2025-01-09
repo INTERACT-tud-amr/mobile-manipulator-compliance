@@ -168,7 +168,6 @@ class ControlInterfaceNode:
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
         msg.time = [time.perf_counter()]
-        
         self.pub_record.publish(msg)
 
     def publish_calibration(self, data: np.ndarray) -> None:
