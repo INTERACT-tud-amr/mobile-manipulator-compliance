@@ -70,13 +70,13 @@ class StateRecorder:
         #Create dictionary
         trajectory = {"q": self.q_history,
                       "q_dot": self.q_dot_history,
-                      "x_pos_history": self.x_pos_history,
-                      "x_quat_history": self.x_quat_history,
-                      "base_pos_history": self.base_pos_history,
-                      "base_quat_history": self.base_quat_history,
+                      "x_pos": self.x_pos_history,
+                      "x_quat": self.x_quat_history,
+                      "base_pos": self.base_pos_history,
+                      "base_quat": self.base_quat_history,
                       "time": self.time_history,
-                      "relative_target_history": self.relative_target_history,
-                      "absolute_target_history": self.absolute_target_history}
+                      "relative_target": self.relative_target_history,
+                      "absolute_target": self.absolute_target_history}
         #Save dictionary
         file_name = "recording_demonstration_" + self.save_id + ".pk"
         folder_path = "demonstrations"
