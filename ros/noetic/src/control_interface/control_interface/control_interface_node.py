@@ -4,7 +4,6 @@ import os
 import time
 import signal
 import sys
-
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32MultiArray, Bool
@@ -32,17 +31,17 @@ class ControlInterfaceNode:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
 
-        self.pub_fdbk = rospy.Publisher("/feedback", Ufdbk, queue_size=10)
-        self.pub_state = rospy.Publisher("/state", Ustate, queue_size=10)
-        self.pub_record = rospy.Publisher("/record", Record, queue_size=10)
-        self.pub_calibration = rospy.Publisher("/calibration", Data, queue_size=10)
-        self.pub_current_pose = rospy.Publisher("/current_pose", PoseStamped, queue_size=1)
-        self.pub_joint_states = rospy.Publisher("/joint_states", JointState, queue_size=1)
-        rospy.Subscriber("/command", Ucmd, self.handle_input, queue_size=10)
-        rospy.Subscriber("/make_compliant", Bool, self.make_compliant, queue_size=1)
-        rospy.Subscriber("/target", Utarget, self.update_target, queue_size=10)
-        rospy.Subscriber("/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
-        rospy.Subscriber("/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
+        self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
+        self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
+        self.pub_record = rospy.Publisher("compliant/record", Record, queue_size=10)
+        self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
+        self.pub_current_pose = rospy.Publisher("compliant/current_pose", PoseStamped, queue_size=1)
+        self.pub_joint_states = rospy.Publisher("compliant/joint_states", JointState, queue_size=1)
+        rospy.Subscriber("compliant/command", Ucmd, self.handle_input, queue_size=10)
+        rospy.Subscriber("compliant/make_compliant", Bool, self.make_compliant, queue_size=1)
+        rospy.Subscriber("compliant/target", Utarget, self.update_target, queue_size=10)
+        rospy.Subscriber("compliant/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
+        rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -57,7 +56,7 @@ class ControlInterfaceNode:
     def make_compliant(self, msg: Bool):
         if msg.data: 
           self.kinova.pref()
-          rospy.loginfo("Wating to reach pref position.")
+          rospy.loginfo("Waiting to reach pref position.")
           time.sleep(5)
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
@@ -132,6 +131,7 @@ class ControlInterfaceNode:
         feedback.dingo_tor = list(self.state.dingo_feedback.c)
         feedback.dingo_rate = self.dingo.rate_counter.rate
         feedback.controller_rate = self.state.controller.rate_counter.rate
+        feedback.mode = self.kinova.mode
         self.pub_fdbk.publish(feedback)
 
     def publish_joint_state(self):
@@ -161,11 +161,14 @@ class ControlInterfaceNode:
         """Publish data to record."""
         msg = Record()
         msg.pos_x = list(self.state.x)
+        msg.quat_x = list(self.state.quat)
         msg.pos_q = list(self.state.kinova_feedback.q)
+        msg.vel_q = list(self.state.kinova_feedback.dq)
         msg.pos_b = list(self.state.pos_base)
         msg.quat_b = list(self.state.quat_base)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
+        msg.time = [time.perf_counter()]
         self.pub_record.publish(msg)
 
     def publish_calibration(self, data: np.ndarray) -> None:
