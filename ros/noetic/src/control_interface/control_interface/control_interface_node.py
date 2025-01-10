@@ -30,6 +30,7 @@ class ControlInterfaceNode:
     def __init__(self, args) -> None:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
+        self.base_enabled = "--base" in args #when this argument is given, also the base is made compliant
 
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
@@ -42,6 +43,9 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/target", Utarget, self.update_target, queue_size=10)
         rospy.Subscriber("compliant/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
+        if self.base_enabled:
+            self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
+            rospy.Subscriber("dingo/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -61,12 +65,15 @@ class ControlInterfaceNode:
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
           self.state.controller.toggle('arm')
-          self.state.controller.toggle('base')
+          if self.base_enabled:
+            self.state.controller.toggle('base')
         else:
-          self.kinova.disconnect_LLC()
-          self.kinova.stop_LLC()
-          self.kinova.pref()
-          time.sleep(3)
+            self.state.controller.toggle('arm')
+            if self.base_enabled:
+                self.state.controller.toggle('base')
+            self.kinova.disconnect_LLC()
+            self.kinova.stop_LLC()
+            self.kinova.pref()
 
 
     def start_threads(self) -> None:
@@ -161,12 +168,17 @@ class ControlInterfaceNode:
     def publish_record(self) -> None:
         """Publish data to record."""
         msg = Record()
-        msg.pos_x = list(self.state.x)
+        pos_x = list(self.state.x)
+        pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
+        pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
+        msg.pos_x = pos_x
         msg.quat_x = list(self.state.quat)
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
-        msg.pos_b = list(self.state.pos_base)
-        msg.quat_b = list(self.state.quat_base)
+        if self.base_enabled:
+            msg.pose_b = list(self.base_vicon_pose)
+        else:
+            msg.pose_b = list(self.state.pose_base)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
         msg.time = [time.perf_counter()]
@@ -263,6 +275,11 @@ class ControlInterfaceNode:
           pose.position.y,
           pose.position.z,
         ])
+        
+    def vicon_base_callback(self, msg: JointState):
+        # this pose is (x, y, theta)
+        self.base_vicon_pose = msg.position
+        
 
     def update_target(self, msg: Utarget) -> None:
         """Update the target."""

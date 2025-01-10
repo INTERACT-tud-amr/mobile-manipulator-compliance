@@ -23,7 +23,7 @@ class StateRecorder:
         self.q, self.q_dot, self.time_prev = None, None, None
         self.x_pos, self.x_orient = None, None
         self.q_history, self.q_dot_history, self.time_history= [], [], []
-        self.x_pos_history, self.x_quat_history, self.base_pos_history, self.base_quat_history = [], [], [], []
+        self.x_pos_history, self.x_quat_history, self.base_pose_history= [], [], []
         self.relative_target_history, self.absolute_target_history = [], []
         self.joystick_data = None
         
@@ -38,8 +38,7 @@ class StateRecorder:
         self.q_dot = data.vel_q
         self.x_pos = data.pos_x
         self.x_quat = data.quat_x
-        self.base_pos = data.pos_b
-        self.base_quat = data.quat_b
+        self.base_pose = data.pose_b
         self.time = data.time
         self.relative_target = data.relative_target
         self.absolute_target = data.absolute_target
@@ -60,8 +59,7 @@ class StateRecorder:
         self.q_dot_history.append(self.q_dot)
         self.x_pos_history.append(self.x_pos)
         self.x_quat_history.append(self.x_quat)
-        self.base_pos_history.append(self.base_pos)
-        self.base_quat_history.append(self.base_quat)
+        self.base_pose_history.append(self.base_pose)
         self.time_history.append(self.time)
         self.relative_target_history.append(self.relative_target)
         self.absolute_target_history.append(self.absolute_target)
@@ -72,8 +70,7 @@ class StateRecorder:
                       "q_dot": self.q_dot_history,
                       "x_pos": self.x_pos_history,
                       "x_quat": self.x_quat_history,
-                      "base_pos": self.base_pos_history,
-                      "base_quat": self.base_quat_history,
+                      "base_pose": self.base_pose_history,
                       "time": self.time_history,
                       "relative_target": self.relative_target_history,
                       "absolute_target": self.absolute_target_history}
@@ -107,6 +104,7 @@ class StateRecorder:
             self.pub_mode.publish(mode)
             #Save trajectory and exit
             self._save_trajectory()
+            time.sleep(2)
             exit()
         
     

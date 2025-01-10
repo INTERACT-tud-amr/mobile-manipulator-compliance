@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<launch>
+    <group ns="$(env ROBOT_NAME)">
+        <!-- Compliant control (use argument base to also enable base compliance)-->
+        <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="" output="screen"/>
+
+        <!-- Teleoperation via joystick and rviz interactive markers -->
+        <include file="$(find dinova_control)/launch/dingo_teleop.launch" />
+
+        <!-- Battery checking -->
+        <node pkg="dinova_bringup" type="battery_checker" name="battery_checker"/>
+
+    </group>
+</launch>
