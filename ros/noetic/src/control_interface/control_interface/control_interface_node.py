@@ -7,10 +7,10 @@ import sys
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32MultiArray, Bool
-
+from scipy.spatial.transform import Rotation as R
 from threading import Thread
 import numpy as np
-
+from compliant_control.control.state import rotMatrix_to_quaternion
 from compliant_control.control.state import State
 from compliant_control.dingo.dingo_driver import DingoDriver
 from compliant_control.kinova.kortex_client import KortexClient
@@ -31,6 +31,7 @@ class ControlInterfaceNode:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
         self.base_enabled = "--base" in args #when this argument is given, also the base is made compliant
+        self.platform_lidar_height = 0.314 #now hardcoded, should be imported from dinova.xacro in dinova_description
 
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
@@ -46,6 +47,9 @@ class ControlInterfaceNode:
         if self.base_enabled:
             self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
             rospy.Subscriber("dingo/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
+        else:
+            self.base_vicon_pose= [0, 0, 0]
+        self.lidar = rospy.get_param('lidar', False)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -166,13 +170,17 @@ class ControlInterfaceNode:
         
 
     def publish_record(self) -> None:
-        """Publish data to record."""
+        """Publish data to record.""" #todo: fix rotation base in recording
         msg = Record()
         pos_x = list(self.state.x)
+        quat_x = list(self.state.quat)
         pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
         pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
-        msg.pos_x = pos_x
-        msg.quat_x = list(self.state.quat)
+        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
+        if self.lidar:
+            pos_x2[2] = pos_x2[2] + self.platform_lidar_height
+        msg.pos_x = pos_x2
+        msg.quat_x = quat_x
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
         if self.base_enabled:
@@ -314,9 +322,40 @@ class ControlInterfaceNode:
     def start_spin_loop(self) -> None:
         """Start node spinning."""
         rospy.spin()
+        
+    def get_rotated_pose(self, pos_x, quat_x, theta):
+        """
+        Creates a 3x3 rotation matrix for a rotation around the z-axis.
+        """
+        rotation_matrix_base = np.array([
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta),  0],
+            [0,             0,              1]
+        ])
+        quaternion_base = rotMatrix_to_quaternion(rotation_matrix_base)
+        pos_x = rotation_matrix_base @ pos_x
+        quat_x = self.quat_product(quaternion_base, quat_x)
+        return pos_x, quat_x
+    
+    def quat_product(self, p, q):
+        # Ensure inputs are numpy arrays
+        p = np.array(p, dtype=np.float64)
+        q = np.array(q, dtype=np.float64)
+        p_w = p[3]
+        q_w = q[3]
+        p_v = p[0:3]
+        q_v = q[0:3]
+
+        if isinstance(p, np.ndarray):
+            pq_w = p_w*q_w - np.matmul(p_v, q_v)
+            pq_v = p_w*q_v + q_w*p_v + np.cross(p_v, q_v)
+            pq = np.append(pq_v, pq_w)
+        else:
+            print("no matching type found in quat_product")
+        return pq
 
 
-def main(args: any = None) -> None:
+def main(args: any = None):
     """Main."""
     args = rospy.myargv(argv=sys.argv)
     ControlInterfaceNode(args)
