@@ -41,9 +41,12 @@ class ControlInterfaceNode:
         self.pub_joint_states = rospy.Publisher("compliant/joint_states", JointState, queue_size=1)
         rospy.Subscriber("compliant/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("compliant/make_compliant", Bool, self.make_compliant, queue_size=1)
+        rospy.Subscriber("compliant/make_compliant_joint", Bool, self.make_compliant_joint, queue_size=1)
         rospy.Subscriber("compliant/target", Utarget, self.update_target, queue_size=10)
         rospy.Subscriber("compliant/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
+        rospy.Subscriber("compliant/set_stiffness_joints", Float32MultiArray, self.update_stiffness_joints, queue_size=10)
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
+        rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
         if self.base_enabled:
             self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
             rospy.Subscriber("dingo/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
@@ -65,6 +68,7 @@ class ControlInterfaceNode:
         if msg.data: 
           self.kinova.pref()
           rospy.loginfo("Waiting to reach pref position.")
+          self.state.reset_target()
           time.sleep(5)
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
@@ -79,6 +83,24 @@ class ControlInterfaceNode:
             self.kinova.stop_LLC()
             self.kinova.pref()
 
+    def make_compliant_joint(self, msg: Bool):
+        if msg.data: 
+          self.kinova.pref()
+          rospy.loginfo("Waiting to reach pref position.")
+          self.state.reset_target()
+          time.sleep(5)
+          self.kinova.start_LLC()
+          self.kinova.connect_LLC()
+          self.state.controller.toggle('arm_joint')
+          if self.base_enabled:
+            self.state.controller.toggle('base')
+        else:
+            self.state.controller.toggle('arm_joint')
+            if self.base_enabled:
+                self.state.controller.toggle('base')
+            self.kinova.disconnect_LLC()
+            self.kinova.stop_LLC()
+            self.kinova.pref()
 
     def start_threads(self) -> None:
         """Start the threads."""
@@ -284,6 +306,10 @@ class ControlInterfaceNode:
           pose.position.z,
         ])
         
+    def desired_joints_target_callback(self, joint: JointState) -> None:
+        self.state.target_q = np.array(joint.position)
+        
+        
     def vicon_base_callback(self, msg: JointState):
         # this pose is (x, y, theta)
         self.base_vicon_pose = msg.position
@@ -297,15 +323,36 @@ class ControlInterfaceNode:
         self.state.quat_base = np.array(msg.quat_b)
         
     def update_stiffness(self, msg: Float32MultiArray) -> None:
+        """
+        IMPORTANT, only update stiffness when in non-compliant mode!!
+        """
         # """Update the stiffness."""
         Kd = np.diag(msg.data[0:3])
         Dd = np.diag(msg.data[3:6])
-        self.kinova.disconnect_LLC()
+        # if len(msg.data)>6:
+        #     Ko = np.diag(msg.data[6:9])
+        print("updating stiffness!")
+        # self.kinova.disconnect_LLC()
         self.state.controller.reset_param_cartesian_impedance(
             Kd=Kd,
             Dd=Dd) 
-
-        self.kinova.connect_LLC()
+        # self.kinova.connect_LLC()
+        
+    def update_stiffness_joints(self, msg: Float32MultiArray) -> None:
+        """
+        IMPORTANT, only update stiffness when in non-compliant mode!!
+        """
+        # """Update the stiffness."""
+        Kq = np.diag(msg.data[0:6])
+        Dq = np.diag(msg.data[6:12])
+        # if len(msg.data)>6:
+        #     Ko = np.diag(msg.data[6:9])
+        print("updating stiffness!")
+        # self.kinova.disconnect_LLC()
+        self.state.controller.reset_param_joints_impedance(
+            Kq=Kq,
+            Dq=Dq) 
+        # self.kinova.connect_LLC()
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""
@@ -334,25 +381,25 @@ class ControlInterfaceNode:
         ])
         quaternion_base = rotMatrix_to_quaternion(rotation_matrix_base)
         pos_x = rotation_matrix_base @ pos_x
-        quat_x = self.quat_product(quaternion_base, quat_x)
+        quat_x = self.state.controller.quat_product(quaternion_base, quat_x)
         return pos_x, quat_x
     
-    def quat_product(self, p, q):
-        # Ensure inputs are numpy arrays
-        p = np.array(p, dtype=np.float64)
-        q = np.array(q, dtype=np.float64)
-        p_w = p[3]
-        q_w = q[3]
-        p_v = p[0:3]
-        q_v = q[0:3]
+    # def quat_product(self, p, q):
+    #     # Ensure inputs are numpy arrays
+    #     p = np.array(p, dtype=np.float64)
+    #     q = np.array(q, dtype=np.float64)
+    #     p_w = p[3]
+    #     q_w = q[3]
+    #     p_v = p[0:3]
+    #     q_v = q[0:3]
 
-        if isinstance(p, np.ndarray):
-            pq_w = p_w*q_w - np.matmul(p_v, q_v)
-            pq_v = p_w*q_v + q_w*p_v + np.cross(p_v, q_v)
-            pq = np.append(pq_v, pq_w)
-        else:
-            print("no matching type found in quat_product")
-        return pq
+    #     if isinstance(p, np.ndarray):
+    #         pq_w = p_w*q_w - np.matmul(p_v, q_v)
+    #         pq_v = p_w*q_v + q_w*p_v + np.cross(p_v, q_v)
+    #         pq = np.append(pq_v, pq_w)
+    #     else:
+    #         print("no matching type found in quat_product")
+    #     return pq
 
 
 def main(args: any = None):

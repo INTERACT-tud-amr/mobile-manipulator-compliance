@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Literal, TYPE_CHECKING
 import numpy as np
 from threading import Thread
-
+from scipy.spatial.transform import Rotation as R
 from compliant_control.dingo.utilities import (
     direction_to_wheel_torques,
     rotation_to_wheel_torques,
@@ -26,8 +26,10 @@ class Controller:
         self.comp_grav = True
         self.comp_fric = False
         self.imp_arm = False
+        self.imp_arm_joint = False
         self.imp_null = False
         self.imp_base = False
+        self.error_quat = False
         self.mode: Literal["position", "velocity", "current"] = "current"
 
         self.joint_commands = np.zeros(JOINTS)
@@ -42,8 +44,12 @@ class Controller:
         # self.Dd = np.eye(3) * 3
         self.Kd = np.eye(3) * 0.000000001
         self.Dd = np.eye(3) * 0.000000001
+        self.Kq = np.eye(6) * 0.1
+        self.Dq = np.eye(6) * 0.
+        # self.Ko = np.eye(3) * 0.
         self.error_cart_MAX = 0.1  # m
         self.thr_dynamic = 0.3  # rad/s
+        self.dq_d = np.zeros(6)
 
         # Null space:
         self.K_n = np.eye(6) * 0.125
@@ -65,6 +71,10 @@ class Controller:
         self.Kd = Kd
         self.Dd = Dd
 
+    def reset_param_joints_impedance(self, Kq: np.ndarray, Dq: np.ndarray) -> None:
+        self.Kq = Kq
+        self.Dq = Dq
+
     def toggle(self, name: str) -> None:
         """Toggle controller states."""
         if name == "grav":
@@ -73,6 +83,8 @@ class Controller:
             self.comp_fric = not self.comp_fric
         elif name == "arm":
             self.imp_arm = not self.imp_arm
+        elif name == "arm_joint":
+            self.imp_arm_joint = not self.imp_arm_joint
         elif name == "null":
             self.imp_null = not self.imp_null
         elif name == "base":
@@ -90,8 +102,11 @@ class Controller:
     def update_command(self) -> None:
         """Update the command of the robot."""
         current = np.zeros(JOINTS)
-        if self.imp_arm:
-            impedance_torque = self.cartesian_impedance()
+        if self.imp_arm or self.imp_arm_joint:
+            if self.imp_arm_joint:
+                impedance_torque = self.joint_impedance()
+            else:
+                impedance_torque = self.cartesian_impedance()
             limit_torque = self.joint_limit_repulsion()
             current += (impedance_torque + limit_torque) * self.state.ratios
             if self.comp_fric:
@@ -112,6 +127,66 @@ class Controller:
         """Return the current due to gravity compensation."""
         return self.state.g * self.state.ratios
 
+    def quat_product(self, p, q):
+        # Ensure inputs are numpy arrays
+        p = np.array(p, dtype=np.float64)
+        q = np.array(q, dtype=np.float64)
+        p_w = p[3]
+        q_w = q[3]
+        p_v = p[0:3]
+        q_v = q[0:3]
+
+        if isinstance(p, np.ndarray):
+            pq_w = p_w*q_w - np.matmul(p_v, q_v)
+            pq_v = p_w*q_v + q_w*p_v + np.cross(p_v, q_v)
+            pq = np.append(pq_v, pq_w)
+        else:
+            print("no matching type found in quat_product")
+        return pq
+    
+
+    # def quaternion_to_angle_axis(self, q_error):
+    #     """
+    #     Convert quaternion error to angle-axis representation.
+
+    #     Args:
+    #         q_error (np.array): Quaternion error [x, y, z, w] (assumed to be normalized).
+
+    #     Returns:
+    #         tuple: (axis, angle) where:
+    #             - axis (np.array): 3D unit vector representing the axis of rotation.
+    #             - angle (float): Rotation angle in radians.
+    #     """
+    #     # Extract vector and scalar parts of the quaternion
+    #     x, y, z, w = q_error
+
+    #     # Compute the angle (2 * arccos(w))
+    #     angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))  # Clip to handle numerical issues
+
+    #     # Compute the axis
+    #     sin_half_angle = np.sqrt(1 - w**2)
+    #     if sin_half_angle > 1e-6:  # Avoid division by zero
+    #         axis = np.array([x, y, z]) / sin_half_angle
+    #     else:
+    #         # If angle is very small, the axis is arbitrary
+    #         axis = np.array([1.0, 0.0, 0.0])  # Default to x-axis
+
+    #     return axis, angle
+
+    # def cartesian_impedance(self) -> np.ndarray:
+    #     """Return the current due to cartesian impedance.."""
+    #     self.x_e = np.array(self.state.target) - np.array(self.state.x)
+        
+    #     # quat_inv = np.array([-self.state.quat[0], -self.state.quat[1], -self.state.quat[2], self.state.quat[3]])
+    #     # self.error_quat = self.quat_product(np.array(self.state.target_quat), quat_inv)
+    #     # axis, angle = self.quaternion_to_angle_axis(self.error_quat)
+        
+    #     self.dx_e = self.dx_d - self.state.dx
+    #     force = self.Kd @ self.x_e + self.Dd @ self.dx_e # + self.Ko * angle * axis
+    #     force = np.clip(force, np.ones(3) * -20, np.ones(3) * 20)
+    #     torque = self.state.T(force)
+    #     return torque
+    
     def cartesian_impedance(self) -> np.ndarray:
         """Return the current due to cartesian impedance.."""
         self.x_e = np.array(self.state.target) - np.array(self.state.x)
@@ -120,7 +195,22 @@ class Controller:
         force = np.clip(force, np.ones(3) * -20, np.ones(3) * 20)
         torque = self.state.T(force)
         return torque
-
+    
+    def joint_impedance(self) -> np.ndarray:
+        """Return the current due to joint impedance."""
+        self.q_e = self.state.target_q - self.state.kinova_feedback.q
+        self.dq_e = self.dq_d - self.state.dq
+        print("self.state.target_q: ", self.state.target_q)
+        print(" self.state.q: ",  self.state.q)
+        print("self.q_e: ", self.q_e)
+        print("self.dq_e: ", self.dq_e)
+        print("self.Kq: ", self.Kq)
+        print("self.Dq: ", self.Dq)
+        force = self.Kq @ self.q_e 
+        force = force + self.Dq @ self.dq_e
+        force = np.clip(force, np.ones(6) * -20, np.ones(6) * 20)
+        torque = force
+        return torque
 
     def joint_limit_repulsion(self) -> np.ndarray:
         repulsive_torque = np.zeros(6)
