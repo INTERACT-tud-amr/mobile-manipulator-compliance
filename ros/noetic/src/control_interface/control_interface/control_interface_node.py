@@ -17,7 +17,7 @@ from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
-
+from sensor_msgs.msg import Joy
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
 PUBLISH_RATE = 100
@@ -32,13 +32,16 @@ class ControlInterfaceNode:
         self.simulate = "--simulate" in args
         self.base_enabled = "--base" in args #when this argument is given, also the base is made compliant
         self.platform_lidar_height = 0.314 #now hardcoded, should be imported from dinova.xacro in dinova_description
-
+        self.emergency_switch_pressed = False
+        self.fk_position = None
+        
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
         self.pub_record = rospy.Publisher("compliant/record", Record, queue_size=10)
         self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
         self.pub_current_pose = rospy.Publisher("compliant/current_pose", PoseStamped, queue_size=1)
-        self.pub_joint_states = rospy.Publisher("compliant/joint_states", JointState, queue_size=1)
+        self.pub_joint_states = rospy.Publisher("kinova/joint_states", JointState, queue_size=1)
+        rospy.Subscriber("bluetooth_teleop/joy", Joy, self.callback_emergency_switch)
         rospy.Subscriber("compliant/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("compliant/make_compliant", Bool, self.make_compliant, queue_size=1)
         rospy.Subscriber("compliant/make_compliant_joint", Bool, self.make_compliant_joint, queue_size=1)
@@ -47,9 +50,10 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/set_stiffness_joints", Float32MultiArray, self.update_stiffness_joints, queue_size=10)
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
+        rospy.Subscriber("compliant/fk/current_pose", PoseStamped, self.fk_callback, queue_size=10)
         if self.base_enabled:
             self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
-            rospy.Subscriber("dingo/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
+            rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
         else:
             self.base_vicon_pose= [0, 0, 0]
         self.lidar = rospy.get_param('lidar', False)
@@ -194,15 +198,19 @@ class ControlInterfaceNode:
     def publish_record(self) -> None:
         """Publish data to record.""" #todo: fix rotation base in recording
         msg = Record()
-        pos_x = list(self.state.x)
-        quat_x = list(self.state.quat)
-        pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
-        pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
-        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
-        if self.lidar:
-            pos_x2[2] = pos_x2[2] + self.platform_lidar_height
-        msg.pos_x = pos_x2
-        msg.quat_x = quat_x
+        if self.fk_position is None:
+            pos_x = list(self.state.x)
+            quat_x = list(self.state.quat)
+            pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
+            pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
+            pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
+            if self.lidar:
+                pos_x2[2] = pos_x2[2] + self.platform_lidar_height
+            msg.pos_x = pos_x2
+            msg.quat_x = quat_x
+        else:
+            msg.pos_x = self.fk_position
+            msg.quat_x = self.fk_orientation
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
         if self.base_enabled:
@@ -309,10 +317,21 @@ class ControlInterfaceNode:
     def desired_joints_target_callback(self, joint: JointState) -> None:
         self.state.target_q = np.array(joint.position)
         
+    def fk_callback(self, pose_fk: PoseStamped) -> None:
+        self.fk_position = [pose_fk.pose.position.x, pose_fk.pose.position.y, pose_fk.pose.position.z]
+        self.fk_orientation = [pose_fk.pose.orientation.x, pose_fk.pose.orientation.y, pose_fk.pose.orientation.z, pose_fk.pose.orientation.w]
         
     def vicon_base_callback(self, msg: JointState):
         # this pose is (x, y, theta)
-        self.base_vicon_pose = msg.position
+        self.base_vicon_pose = msg.position[0:3]
+        
+    def callback_emergency_switch(self, msg: Joy):
+        if msg.buttons[4]:
+            print("You are pressing the emergency button!")
+            self.emergency_switch_pressed = True
+            self.state.controller.return_emergency_switched_pressed(True)
+        else:
+            self.emergency_switch_pressed = False
         
 
     def update_target(self, msg: Utarget) -> None:

@@ -81,10 +81,15 @@
             <node pkg="tf" type="static_transform_publisher" name="$(env ROBOT_NAME)_static_tf" args="0 0 0 0 0 0 $(env ROBOT_NAME) $(env ROBOT_NAME)/base_link 0.1" />
         </group>
 
-        <!-- Vicon Publish robot pose to omni_states_vicon -->
-        <node name="dinova_state_publisher" pkg="dinova_control" type="dingo_state_publisher.py" args="" output="screen"/>
-
         <!-- Compliant control -->
         <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="--base" output="screen"/>
+
+        <!-- Vicon Publish robot pose to omni_states_vicon -->
+        <rosparam command="load" file="$(find dinova_control)/config/config.yaml" />
+        <node name="dinova_state_publisher" pkg="dinova_control" type="dinova_state_publisher.py" args="" output="screen"/>
+        <!-- <node name="dinova_state_publisher" pkg="dinova_control" type="dingo_state_publisher.py" args="" output="screen"/> -->
+
+        <!-- Forward kinematics symbolic -->
+        <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
     </group>
 </launch>

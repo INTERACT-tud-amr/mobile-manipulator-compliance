@@ -15,5 +15,7 @@
         <!-- Battery checking -->
         <node pkg="dinova_bringup" type="battery_checker" name="battery_checker"/>
 
+        <!-- Forward kinematics symbolic -->
+        <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
     </group>
 </launch>

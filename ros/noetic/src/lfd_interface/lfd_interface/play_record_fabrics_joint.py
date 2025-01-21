@@ -9,7 +9,8 @@ import time
 This script is only tested using the "normal" dinova controller (non-compliant controller) at the moment!!
 
 has to be run beforehand:
-rosservice call /dingo2/kinova/change_to_HLC_position
+    roslaunch dinova_bringup dinova.launch
+    roslaunch dinova_fabrics_wrapper dinova_joint_space_no_actionsv.launch
 """
 
 class PlaybackRecording:

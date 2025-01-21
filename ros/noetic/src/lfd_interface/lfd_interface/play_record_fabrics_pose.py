@@ -9,7 +9,8 @@ import time
 This script is only tested using the "normal" dinova controller (non-compliant controller) at the moment!!
 
 has to be run beforehand:
-rosservice call /dingo2/kinova/change_to_HLC_position
+    roslaunch dinova_bringup dinova.launch
+    roslaunch dinova_fabrics_wrapper dinova_pose_no_actionsv.launch
 """
 
 class PlaybackRecording:
@@ -62,7 +63,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         arg2 = sys.argv[2]
     else:
-        arg2 = "recording_demonstration_6"
+        arg2 = "recording_demonstration_13"
     if len(sys.argv) > 3:
         arg3 = str(sys.argv[3])
     else:

@@ -11,7 +11,8 @@ from sensor_msgs.msg import JointState
 This script is only tested using the "normal" dinova controller (non-compliant controller) at the moment!!
 
 has to be run beforehand:
-rosservice call /dingo2/kinova/change_to_HLC_position
+    roslaunch dinova_bringup dinova.launch
+    rosservice call /dingo2/kinova/change_to_HLC_position
 """
 
 class PlaybackRecording:

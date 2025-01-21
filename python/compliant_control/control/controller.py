@@ -31,6 +31,7 @@ class Controller:
         self.imp_base = False
         self.error_quat = False
         self.mode: Literal["position", "velocity", "current"] = "current"
+        self.emergency_switch_pressed = False
 
         self.joint_commands = np.zeros(JOINTS)
         self.c_compliant = np.zeros(JOINTS)
@@ -71,6 +72,9 @@ class Controller:
     def reset_param_joints_impedance(self, Kq: np.ndarray, Dq: np.ndarray) -> None:
         self.Kq = Kq
         self.Dq = Dq
+        
+    def return_emergency_switched_pressed(self, emergency_switch_pressed) -> None:
+        self.emergency_switch_pressed = emergency_switch_pressed
 
     def toggle(self, name: str) -> None:
         """Toggle controller states."""
@@ -219,6 +223,8 @@ class Controller:
         if magnitude > self.thr_pos_error:
             direction = error / magnitude
             gain = min(magnitude * self.K_pos, self.gain_pos_MAX)
+            if self.emergency_switch_pressed:
+                gain = 0.
             self.command_base_direction([-direction[1], direction[0]], gain)
 
         # Rotation:
@@ -227,6 +233,8 @@ class Controller:
         if magnitude > self.thr_rot_error:
             rotation = error
             gain = min(magnitude * self.K_rot, self.gain_rot_MAX)
+            if self.emergency_switch_pressed:
+                gain = 0.
             self.command_base_rotation(rotation, gain)
 
     def reset_base_command(self) -> None:
