@@ -19,10 +19,7 @@ class TrackerCompliant():
         self.Kd[1, 1] = 40
         self.Kd[2, 2] = 10
         self.Dd = np.eye(3) * 3
-        self.Ko = np.eye(3) * 1.
         self.desired_pose_offset = [0., 0., 0.1]
-        # self.Kd = np.eye(3) * 0.000000001
-        # self.Dd = np.eye(3) * 0.000000001
         self.end = False
         self.TARGET_RESET = False
         self.target = None
@@ -53,7 +50,7 @@ class TrackerCompliant():
             
     def publish_stiffness(self):
         stiffness_msg = Float32MultiArray()
-        diag_stiffness_list = [self.Kd[i, i] for i in range(len(self.Kd))] + [self.Dd[i, i] for i in range(len(self.Dd))] + [self.Ko[i, i] for i in range(len(self.Ko))]
+        diag_stiffness_list = [self.Kd[i, i] for i in range(len(self.Kd))] + [self.Dd[i, i] for i in range(len(self.Dd))]
         print("diag_stiffness_list: ", diag_stiffness_list)
         stiffness_msg.data = diag_stiffness_list
         self.pub_stiffness.publish(stiffness_msg)

@@ -118,8 +118,6 @@ class State:
 
         self.target = self.x
         self.absolute_target = self.x
-        self.q = np.array(self.kinova_feedback.q)
-        self.dq = np.array(self.kinova_feedback.dq)
         self.target_q = np.array(self.kinova_feedback.q)
         self.pose_base = np.zeros(3)
 
@@ -136,7 +134,7 @@ class State:
     def reset_target(self):
         self.target = self.x
         self.absolute_target = self.x
-        self.target_q = self.q
+        self.target_q = self.kinova_feedback.q
         
     @property
     def g(self) -> np.ndarray:

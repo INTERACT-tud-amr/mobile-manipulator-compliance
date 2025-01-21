@@ -329,8 +329,6 @@ class ControlInterfaceNode:
         # """Update the stiffness."""
         Kd = np.diag(msg.data[0:3])
         Dd = np.diag(msg.data[3:6])
-        # if len(msg.data)>6:
-        #     Ko = np.diag(msg.data[6:9])
         print("updating stiffness!")
         # self.kinova.disconnect_LLC()
         self.state.controller.reset_param_cartesian_impedance(
@@ -345,8 +343,6 @@ class ControlInterfaceNode:
         # """Update the stiffness."""
         Kq = np.diag(msg.data[0:6])
         Dq = np.diag(msg.data[6:12])
-        # if len(msg.data)>6:
-        #     Ko = np.diag(msg.data[6:9])
         print("updating stiffness!")
         # self.kinova.disconnect_LLC()
         self.state.controller.reset_param_joints_impedance(
@@ -383,24 +379,6 @@ class ControlInterfaceNode:
         pos_x = rotation_matrix_base @ pos_x
         quat_x = self.state.controller.quat_product(quaternion_base, quat_x)
         return pos_x, quat_x
-    
-    # def quat_product(self, p, q):
-    #     # Ensure inputs are numpy arrays
-    #     p = np.array(p, dtype=np.float64)
-    #     q = np.array(q, dtype=np.float64)
-    #     p_w = p[3]
-    #     q_w = q[3]
-    #     p_v = p[0:3]
-    #     q_v = q[0:3]
-
-    #     if isinstance(p, np.ndarray):
-    #         pq_w = p_w*q_w - np.matmul(p_v, q_v)
-    #         pq_v = p_w*q_v + q_w*p_v + np.cross(p_v, q_v)
-    #         pq = np.append(pq_v, pq_w)
-    #     else:
-    #         print("no matching type found in quat_product")
-    #     return pq
-
 
 def main(args: any = None):
     """Main."""

@@ -40,13 +40,10 @@ class Controller:
 
         # Cartesian impedance:
         self.thr_cart_error = 0.001  # m
-        # self.Kd = np.eye(3) * 40
-        # self.Dd = np.eye(3) * 3
         self.Kd = np.eye(3) * 0.000000001
         self.Dd = np.eye(3) * 0.000000001
         self.Kq = np.eye(6) * 0.1
         self.Dq = np.eye(6) * 0.
-        # self.Ko = np.eye(3) * 0.
         self.error_cart_MAX = 0.1  # m
         self.thr_dynamic = 0.3  # rad/s
         self.dq_d = np.zeros(6)
@@ -144,49 +141,6 @@ class Controller:
             print("no matching type found in quat_product")
         return pq
     
-
-    # def quaternion_to_angle_axis(self, q_error):
-    #     """
-    #     Convert quaternion error to angle-axis representation.
-
-    #     Args:
-    #         q_error (np.array): Quaternion error [x, y, z, w] (assumed to be normalized).
-
-    #     Returns:
-    #         tuple: (axis, angle) where:
-    #             - axis (np.array): 3D unit vector representing the axis of rotation.
-    #             - angle (float): Rotation angle in radians.
-    #     """
-    #     # Extract vector and scalar parts of the quaternion
-    #     x, y, z, w = q_error
-
-    #     # Compute the angle (2 * arccos(w))
-    #     angle = 2 * np.arccos(np.clip(w, -1.0, 1.0))  # Clip to handle numerical issues
-
-    #     # Compute the axis
-    #     sin_half_angle = np.sqrt(1 - w**2)
-    #     if sin_half_angle > 1e-6:  # Avoid division by zero
-    #         axis = np.array([x, y, z]) / sin_half_angle
-    #     else:
-    #         # If angle is very small, the axis is arbitrary
-    #         axis = np.array([1.0, 0.0, 0.0])  # Default to x-axis
-
-    #     return axis, angle
-
-    # def cartesian_impedance(self) -> np.ndarray:
-    #     """Return the current due to cartesian impedance.."""
-    #     self.x_e = np.array(self.state.target) - np.array(self.state.x)
-        
-    #     # quat_inv = np.array([-self.state.quat[0], -self.state.quat[1], -self.state.quat[2], self.state.quat[3]])
-    #     # self.error_quat = self.quat_product(np.array(self.state.target_quat), quat_inv)
-    #     # axis, angle = self.quaternion_to_angle_axis(self.error_quat)
-        
-    #     self.dx_e = self.dx_d - self.state.dx
-    #     force = self.Kd @ self.x_e + self.Dd @ self.dx_e # + self.Ko * angle * axis
-    #     force = np.clip(force, np.ones(3) * -20, np.ones(3) * 20)
-    #     torque = self.state.T(force)
-    #     return torque
-    
     def cartesian_impedance(self) -> np.ndarray:
         """Return the current due to cartesian impedance.."""
         self.x_e = np.array(self.state.target) - np.array(self.state.x)
@@ -199,13 +153,7 @@ class Controller:
     def joint_impedance(self) -> np.ndarray:
         """Return the current due to joint impedance."""
         self.q_e = self.state.target_q - self.state.kinova_feedback.q
-        self.dq_e = self.dq_d - self.state.dq
-        print("self.state.target_q: ", self.state.target_q)
-        print(" self.state.q: ",  self.state.q)
-        print("self.q_e: ", self.q_e)
-        print("self.dq_e: ", self.dq_e)
-        print("self.Kq: ", self.Kq)
-        print("self.Dq: ", self.Dq)
+        self.dq_e = self.dq_d - self.state.kinova_feedback.dq
         force = self.Kq @ self.q_e 
         force = force + self.Dq @ self.dq_e
         force = np.clip(force, np.ones(6) * -20, np.ones(6) * 20)

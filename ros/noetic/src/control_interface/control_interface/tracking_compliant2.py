@@ -15,17 +15,9 @@ class TrackerCompliant():
         # -- parameters --#
         self.robot_name = robot_name
         self.q_current = [0] * 6
-        # self.Kd = np.eye(3) #* 40
-        # self.Kd[0, 0] = 40
-        # self.Kd[1, 1] = 40
-        # self.Kd[2, 2] = 10
-        # self.Dd = np.eye(3) * 3
-        # self.Ko = np.eye(3) * 1.
-        self.Kq = np.eye(6) * 0.5
+        self.Kq = np.diag([6., 40., 6., 1., 1., 1])
         self.Dq = np.eye(6) * 0.001
         self.desired_pose_offset = [0., 0., 0.1]
-        # self.Kd = np.eye(3) * 0.000000001
-        # self.Dd = np.eye(3) * 0.000000001
         self.end = False
         self.TARGET_RESET = False
         self.target = None
