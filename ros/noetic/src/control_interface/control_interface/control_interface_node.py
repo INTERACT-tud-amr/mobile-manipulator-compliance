@@ -198,19 +198,18 @@ class ControlInterfaceNode:
     def publish_record(self) -> None:
         """Publish data to record.""" #todo: fix rotation base in recording
         msg = Record()
-        if self.fk_position is None:
-            pos_x = list(self.state.x)
-            quat_x = list(self.state.quat)
-            pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
-            pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
-            pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
-            if self.lidar:
-                pos_x2[2] = pos_x2[2] + self.platform_lidar_height
-            msg.pos_x = pos_x2
-            msg.quat_x = quat_x
-        else:
-            msg.pos_x = self.fk_position
-            msg.quat_x = self.fk_orientation
+        pos_x = list(self.state.x)
+        quat_x = list(self.state.quat)
+        pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
+        pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
+        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
+        if self.lidar:
+            pos_x2[2] = pos_x2[2] + self.platform_lidar_height
+        msg.pos_x = pos_x2
+        msg.quat_x = quat_x
+        if self.fk_position is not None:
+            msg.pos_fk = self.fk_position
+            msg.quat_fk = self.fk_orientation
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
         if self.base_enabled:

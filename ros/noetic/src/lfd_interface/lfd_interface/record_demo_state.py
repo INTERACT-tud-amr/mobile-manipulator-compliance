@@ -6,6 +6,7 @@ import os
 from user_interface_msg.msg import Record, Ufdbk
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
+from scipy.signal import butter, filtfilt, decimate
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
@@ -22,9 +23,11 @@ class StateRecorder:
         self.mode = "Unknown"
         self.q, self.q_dot, self.time_prev = None, None, None
         self.x_pos, self.x_orient = None, None
+        self.pos_fk, self.quat_fk = None, None
         self.q_history, self.q_dot_history, self.time_history= [], [], []
         self.x_pos_history, self.x_quat_history, self.base_pose_history= [], [], []
         self.relative_target_history, self.absolute_target_history = [], []
+        self.pos_fk_history, self.quat_fk_history = [], []
         self.joystick_data = None
         
         #Create ROS subscriber
@@ -42,6 +45,8 @@ class StateRecorder:
         self.time = data.time
         self.relative_target = data.relative_target
         self.absolute_target = data.absolute_target
+        self.pos_fk = data.pos_fk
+        self.quat_fk = data.quat_fk
         
     def _callback_feedback_mode(self, data):
         self.mode = data.mode
@@ -59,17 +64,38 @@ class StateRecorder:
         self.q_dot_history.append(self.q_dot)
         self.x_pos_history.append(self.x_pos)
         self.x_quat_history.append(self.x_quat)
+        self.pos_fk_history.append(self.pos_fk)
+        self.quat_fk_history.append(self.quat_fk)
         self.base_pose_history.append(self.base_pose)
         self.time_history.append(self.time)
         self.relative_target_history.append(self.relative_target)
         self.absolute_target_history.append(self.absolute_target)
         
-    def _save_trajectory(self):
+    # def low_pass_filter(self, data, cutoff, fs, order=4):
+    #     print("len data: ", len(data))
+    #     nyquist = 0.5 * fs
+    #     normal_cutoff = cutoff / nyquist
+    #     b, a = butter(order, normal_cutoff, btype='low', analog=False)
+    #     return filtfilt(b, a, data)
+    
+    def filter_data(self, position_noisy, orientation_noisy, fs=100, cutoff_frequency=5):
+        # position_filtered = self.low_pass_filter(position_noisy, cutoff_frequency, fs)
+        # orientation_filtered = self.low_pass_filter(orientation_noisy, cutoff_frequency, fs)
+        
+        downsample_factor = 10  # From 100 Hz to 10 Hz
+        position_smooth = position_noisy[::downsample_factor]
+        orientation_smooth = orientation_noisy[::downsample_factor] #decimate(orientation_noisy, downsample_factor, ftype='fir')
+        return position_smooth, orientation_smooth
+
+        
+    def _save_trajectory(self, frequency=100):
         #Create dictionary
         trajectory = {"q": self.q_history,
                       "q_dot": self.q_dot_history,
                       "x_pos": self.x_pos_history,
                       "x_quat": self.x_quat_history,
+                      "pos_fk": self.pos_fk_history,
+                      "quat_fk": self.quat_fk_history,
                       "base_pose": self.base_pose_history,
                       "time": self.time_history,
                       "relative_target": self.relative_target_history,
@@ -84,7 +110,16 @@ class StateRecorder:
         with open(file_path, 'wb') as file:
             pickle.dump(trajectory, file)
             
-    def run(self):
+        # also save downsampled trajectory
+        position_downsample, orientation_downsample = self.filter_data(position_noisy=self.pos_fk_history, 
+                                                    orientation_noisy=self.quat_fk_history, 
+                                                    fs=frequency)
+        trajectory["pos_fk_downsample"] = position_downsample
+        trajectory["quat_fk_downsample"] = orientation_downsample
+        with open(file_path, 'wb') as file:
+            pickle.dump(trajectory, file)
+            
+    def run(self, frequency=100):
         # check if compliant mode is activated, otherwise active:
         if self.mode != "LLC_task":
             print("Making the robot compliant, do not press any keys!!")
@@ -103,7 +138,7 @@ class StateRecorder:
             mode.data = False
             self.pub_mode.publish(mode)
             #Save trajectory and exit
-            self._save_trajectory()
+            self._save_trajectory(frequency=frequency)
             time.sleep(2)
             exit()
         
@@ -111,11 +146,12 @@ class StateRecorder:
 if __name__ == '__main__':
     rospy.init_node('state_recorder')
     state_recorder = StateRecorder(sys.argv[1], save_id=sys.argv[2])
-    rate = rospy.Rate(100)
+    frequency = 100
+    rate = rospy.Rate(frequency)
     rospy.sleep(0.1)
     while not rospy.is_shutdown():
         try:
-            state_recorder.run()
+            state_recorder.run(frequency)
             rate.sleep()
         except rospy.ROSInterruptException:
             pass
