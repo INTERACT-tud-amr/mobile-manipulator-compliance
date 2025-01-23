@@ -30,7 +30,9 @@ class ControlInterfaceNode:
     def __init__(self, args) -> None:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
-        self.base_enabled = "--base" in args #when this argument is given, also the base is made compliant
+        self.base_on = "--base_on" in args #when argument is given, the base control is done via normal velocity control
+        print("self.base_on:", self.base_on)
+        self.base_compliant = "--base" in args #when this argument is given, also the base is made compliant
         self.platform_lidar_height = 0.314 #now hardcoded, should be imported from dinova.xacro in dinova_description
         self.emergency_switch_pressed = False
         self.fk_position = None
@@ -51,7 +53,7 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
         rospy.Subscriber("compliant/fk/current_pose", PoseStamped, self.fk_callback, queue_size=10)
-        if self.base_enabled:
+        if self.base_compliant:
             self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
             rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
         else:
@@ -77,11 +79,11 @@ class ControlInterfaceNode:
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
           self.state.controller.toggle('arm')
-          if self.base_enabled:
+          if self.base_compliant:
             self.state.controller.toggle('base')
         else:
             self.state.controller.toggle('arm')
-            if self.base_enabled:
+            if self.base_compliant:
                 self.state.controller.toggle('base')
             self.kinova.disconnect_LLC()
             self.kinova.stop_LLC()
@@ -96,11 +98,11 @@ class ControlInterfaceNode:
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
           self.state.controller.toggle('arm_joint')
-          if self.base_enabled:
+          if self.base_compliant:
             self.state.controller.toggle('base')
         else:
             self.state.controller.toggle('arm_joint')
-            if self.base_enabled:
+            if self.base_compliant:
                 self.state.controller.toggle('base')
             self.kinova.disconnect_LLC()
             self.kinova.stop_LLC()
@@ -116,8 +118,9 @@ class ControlInterfaceNode:
 
     def start_robot(self) -> None:
         """Start the robot."""
-        self.dingo = DingoDriver(self.state)
-        self.dingo.log = rospy.loginfo
+        if self.base_on:
+            self.dingo = DingoDriver(self.state)
+            self.dingo.log = rospy.loginfo
         self.start_threads()
         with DeviceConnection.createTcpConnection() as router, DeviceConnection.createUdpConnection() as real_time_router:
             self.kinova = KortexClient(
@@ -167,7 +170,8 @@ class ControlInterfaceNode:
         feedback.dingo_pos = list(self.state.dingo_feedback.q)
         feedback.dingo_vel = list(self.state.dingo_feedback.dq)
         feedback.dingo_tor = list(self.state.dingo_feedback.c)
-        feedback.dingo_rate = self.dingo.rate_counter.rate
+        if self.base_on:
+            feedback.dingo_rate = self.dingo.rate_counter.rate
         feedback.controller_rate = self.state.controller.rate_counter.rate
         feedback.mode = self.kinova.mode
         self.pub_fdbk.publish(feedback)
@@ -212,7 +216,7 @@ class ControlInterfaceNode:
             msg.quat_fk = self.fk_orientation
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
-        if self.base_enabled:
+        if self.base_compliant:
             msg.pose_b = list(self.base_vicon_pose)
         else:
             msg.pose_b = list(self.state.pose_base)
