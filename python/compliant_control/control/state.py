@@ -5,7 +5,6 @@ from compliant_control.control.controller import Controller
 import compliant_control.control.symbolics as symbolics
 from dataclasses import dataclass
 
-
 JOINTS = 6
 WHEELS = 4
 DIM = 3
@@ -119,8 +118,8 @@ class State:
 
         self.target = self.x
         self.absolute_target = self.x
-        self.pos_base = np.zeros(3)
-        self.quat_base = np.zeros(4)
+        self.target_q = np.array(self.kinova_feedback.q)
+        self.pose_base = np.zeros(3)
 
         self.controller = Controller(self)
         self.controller.reset()
@@ -132,6 +131,11 @@ class State:
             self.ratios = np.array([1.0282, 0.3074, 1.0282, 1.9074, 2.0373, 1.9724])
             self.frictions = np.array([0.5318, 1.4776, 0.6695, 0.3013, 0.3732, 0.5923])
 
+    def reset_target(self):
+        self.target = self.x
+        self.absolute_target = self.x
+        self.target_q = self.kinova_feedback.q
+        
     @property
     def g(self) -> np.ndarray:
         """Gravity vector."""

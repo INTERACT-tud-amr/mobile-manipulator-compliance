@@ -7,17 +7,17 @@ import sys
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32MultiArray, Bool
-
+from scipy.spatial.transform import Rotation as R
 from threading import Thread
 import numpy as np
-
+from compliant_control.control.state import rotMatrix_to_quaternion
 from compliant_control.control.state import State
 from compliant_control.dingo.dingo_driver import DingoDriver
 from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
 
 from compliant_control.control.calibration import Calibration
-
+from sensor_msgs.msg import Joy
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
 PUBLISH_RATE = 100
@@ -30,18 +30,35 @@ class ControlInterfaceNode:
     def __init__(self, args) -> None:
         rospy.init_node("control_interface_node")
         self.simulate = "--simulate" in args
-
+        self.base_on = "--base_on" in args #when argument is given, the base control is done via normal velocity control
+        print("self.base_on:", self.base_on)
+        self.base_compliant = "--base" in args #when this argument is given, also the base is made compliant
+        self.platform_lidar_height = 0.314 #now hardcoded, should be imported from dinova.xacro in dinova_description
+        self.emergency_switch_pressed = False
+        self.fk_position = None
+        
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
         self.pub_record = rospy.Publisher("compliant/record", Record, queue_size=10)
         self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
         self.pub_current_pose = rospy.Publisher("compliant/current_pose", PoseStamped, queue_size=1)
-        self.pub_joint_states = rospy.Publisher("compliant/joint_states", JointState, queue_size=1)
+        self.pub_joint_states = rospy.Publisher("kinova/joint_states", JointState, queue_size=1)
+        rospy.Subscriber("bluetooth_teleop/joy", Joy, self.callback_emergency_switch)
         rospy.Subscriber("compliant/command", Ucmd, self.handle_input, queue_size=10)
         rospy.Subscriber("compliant/make_compliant", Bool, self.make_compliant, queue_size=1)
+        rospy.Subscriber("compliant/make_compliant_joint", Bool, self.make_compliant_joint, queue_size=1)
         rospy.Subscriber("compliant/target", Utarget, self.update_target, queue_size=10)
         rospy.Subscriber("compliant/set_stiffness", Float32MultiArray, self.update_stiffness, queue_size=10)
+        rospy.Subscriber("compliant/set_stiffness_joints", Float32MultiArray, self.update_stiffness_joints, queue_size=10)
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
+        rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
+        rospy.Subscriber("compliant/fk/current_pose", PoseStamped, self.fk_callback, queue_size=10)
+        if self.base_compliant:
+            self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
+            rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
+        else:
+            self.base_vicon_pose= [0, 0, 0]
+        self.lidar = rospy.get_param('lidar', False)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -57,16 +74,39 @@ class ControlInterfaceNode:
         if msg.data: 
           self.kinova.pref()
           rospy.loginfo("Waiting to reach pref position.")
+          self.state.reset_target()
           time.sleep(5)
           self.kinova.start_LLC()
           self.kinova.connect_LLC()
           self.state.controller.toggle('arm')
+          if self.base_compliant:
+            self.state.controller.toggle('base')
         else:
-          self.kinova.disconnect_LLC()
-          self.kinova.stop_LLC()
-          self.kinova.pref()
-          time.sleep(3)
+            self.state.controller.toggle('arm')
+            if self.base_compliant:
+                self.state.controller.toggle('base')
+            self.kinova.disconnect_LLC()
+            self.kinova.stop_LLC()
+            self.kinova.pref()
 
+    def make_compliant_joint(self, msg: Bool):
+        if msg.data: 
+          self.kinova.pref()
+          rospy.loginfo("Waiting to reach pref position.")
+          self.state.reset_target()
+          time.sleep(5)
+          self.kinova.start_LLC()
+          self.kinova.connect_LLC()
+          self.state.controller.toggle('arm_joint')
+          if self.base_compliant:
+            self.state.controller.toggle('base')
+        else:
+            self.state.controller.toggle('arm_joint')
+            if self.base_compliant:
+                self.state.controller.toggle('base')
+            self.kinova.disconnect_LLC()
+            self.kinova.stop_LLC()
+            self.kinova.pref()
 
     def start_threads(self) -> None:
         """Start the threads."""
@@ -78,8 +118,9 @@ class ControlInterfaceNode:
 
     def start_robot(self) -> None:
         """Start the robot."""
-        self.dingo = DingoDriver(self.state)
-        self.dingo.log = rospy.loginfo
+        if self.base_on:
+            self.dingo = DingoDriver(self.state)
+            self.dingo.log = rospy.loginfo
         self.start_threads()
         with DeviceConnection.createTcpConnection() as router, DeviceConnection.createUdpConnection() as real_time_router:
             self.kinova = KortexClient(
@@ -129,7 +170,8 @@ class ControlInterfaceNode:
         feedback.dingo_pos = list(self.state.dingo_feedback.q)
         feedback.dingo_vel = list(self.state.dingo_feedback.dq)
         feedback.dingo_tor = list(self.state.dingo_feedback.c)
-        feedback.dingo_rate = self.dingo.rate_counter.rate
+        if self.base_on:
+            feedback.dingo_rate = self.dingo.rate_counter.rate
         feedback.controller_rate = self.state.controller.rate_counter.rate
         feedback.mode = self.kinova.mode
         self.pub_fdbk.publish(feedback)
@@ -158,14 +200,26 @@ class ControlInterfaceNode:
         
 
     def publish_record(self) -> None:
-        """Publish data to record."""
+        """Publish data to record.""" #todo: fix rotation base in recording
         msg = Record()
-        msg.pos_x = list(self.state.x)
-        msg.quat_x = list(self.state.quat)
+        pos_x = list(self.state.x)
+        quat_x = list(self.state.quat)
+        pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
+        pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
+        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
+        if self.lidar:
+            pos_x2[2] = pos_x2[2] + self.platform_lidar_height
+        msg.pos_x = pos_x2
+        msg.quat_x = quat_x
+        if self.fk_position is not None:
+            msg.pos_fk = self.fk_position
+            msg.quat_fk = self.fk_orientation
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
-        msg.pos_b = list(self.state.pos_base)
-        msg.quat_b = list(self.state.quat_base)
+        if self.base_compliant:
+            msg.pose_b = list(self.base_vicon_pose)
+        else:
+            msg.pose_b = list(self.state.pose_base)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
         msg.time = [time.perf_counter()]
@@ -262,6 +316,26 @@ class ControlInterfaceNode:
           pose.position.y,
           pose.position.z,
         ])
+        
+    def desired_joints_target_callback(self, joint: JointState) -> None:
+        self.state.target_q = np.array(joint.position)
+        
+    def fk_callback(self, pose_fk: PoseStamped) -> None:
+        self.fk_position = [pose_fk.pose.position.x, pose_fk.pose.position.y, pose_fk.pose.position.z]
+        self.fk_orientation = [pose_fk.pose.orientation.x, pose_fk.pose.orientation.y, pose_fk.pose.orientation.z, pose_fk.pose.orientation.w]
+        
+    def vicon_base_callback(self, msg: JointState):
+        # this pose is (x, y, theta)
+        self.base_vicon_pose = msg.position[0:3]
+        
+    def callback_emergency_switch(self, msg: Joy):
+        if msg.buttons[4]:
+            print("You are pressing the emergency button!")
+            self.emergency_switch_pressed = True
+            self.state.controller.return_emergency_switched_pressed(True)
+        else:
+            self.emergency_switch_pressed = False
+        
 
     def update_target(self, msg: Utarget) -> None:
         """Update the target."""
@@ -271,15 +345,32 @@ class ControlInterfaceNode:
         self.state.quat_base = np.array(msg.quat_b)
         
     def update_stiffness(self, msg: Float32MultiArray) -> None:
+        """
+        IMPORTANT, only update stiffness when in non-compliant mode!!
+        """
         # """Update the stiffness."""
         Kd = np.diag(msg.data[0:3])
         Dd = np.diag(msg.data[3:6])
-        self.kinova.disconnect_LLC()
+        print("updating stiffness!")
+        # self.kinova.disconnect_LLC()
         self.state.controller.reset_param_cartesian_impedance(
             Kd=Kd,
             Dd=Dd) 
-
-        self.kinova.connect_LLC()
+        # self.kinova.connect_LLC()
+        
+    def update_stiffness_joints(self, msg: Float32MultiArray) -> None:
+        """
+        IMPORTANT, only update stiffness when in non-compliant mode!!
+        """
+        # """Update the stiffness."""
+        Kq = np.diag(msg.data[0:6])
+        Dq = np.diag(msg.data[6:12])
+        print("updating stiffness!")
+        # self.kinova.disconnect_LLC()
+        self.state.controller.reset_param_joints_impedance(
+            Kq=Kq,
+            Dq=Dq) 
+        # self.kinova.connect_LLC()
 
     def toggle_automove_target(self) -> None:
         """Toggle automove of target."""
@@ -296,9 +387,22 @@ class ControlInterfaceNode:
     def start_spin_loop(self) -> None:
         """Start node spinning."""
         rospy.spin()
+        
+    def get_rotated_pose(self, pos_x, quat_x, theta):
+        """
+        Creates a 3x3 rotation matrix for a rotation around the z-axis.
+        """
+        rotation_matrix_base = np.array([
+            [np.cos(theta), -np.sin(theta), 0],
+            [np.sin(theta), np.cos(theta),  0],
+            [0,             0,              1]
+        ])
+        quaternion_base = rotMatrix_to_quaternion(rotation_matrix_base)
+        pos_x = rotation_matrix_base @ pos_x
+        quat_x = self.state.controller.quat_product(quaternion_base, quat_x)
+        return pos_x, quat_x
 
-
-def main(args: any = None) -> None:
+def main(args: any = None):
     """Main."""
     args = rospy.myargv(argv=sys.argv)
     ControlInterfaceNode(args)

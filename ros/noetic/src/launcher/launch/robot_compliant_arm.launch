@@ -82,7 +82,7 @@
         </group>
 
         <!-- Compliant control -->
-        <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="--base --base_on" output="screen"/>
+        <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="" output="screen"/>
 
         <!-- Vicon Publish robot pose to omni_states_vicon -->
         <rosparam command="load" file="$(find dinova_control)/config/config.yaml" />
@@ -91,5 +91,8 @@
 
         <!-- Forward kinematics symbolic -->
         <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
+
+        <!-- make controller compliant and set higher stiffness -->
+        <node name="make_compliant_node" pkg="control_interface" type="make_compliant_node.py" args="" output="screen"/>
     </group>
 </launch>

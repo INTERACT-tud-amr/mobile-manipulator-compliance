@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Velodyne lidar -->
+    <arg name="lidar" default="false"/>
+
+    <group ns="$(env ROBOT_NAME)">
+        <param name="lidar" value="$(arg lidar)" />
+
+        <!-- Compliant control (use argument base to also enable base compliance)-->
+        <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="--base_on" output="screen"/>
+
+        <!-- Teleoperation via joystick and rviz interactive markers -->
+        <include file="$(find dinova_control)/launch/dingo_teleop.launch" />
+
+        <!-- Battery checking -->
+        <node pkg="dinova_bringup" type="battery_checker" name="battery_checker"/>
+
+        <!-- Forward kinematics symbolic -->
+        <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
+    </group>
+</launch>
