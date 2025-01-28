@@ -25,6 +25,7 @@ class TrackerCompliant():
         self.Kq = np.diag([6., 40., 6., 1., 1., 1])
         self.Dq = np.eye(6) * 0.001
         self.desired_pose_offset = [0., 0., 0.1]
+        self.start = True
         self.end = False
         self.TARGET_RESET = False
         self.target = None
@@ -46,9 +47,12 @@ class TrackerCompliant():
         self.mode = data.mode
 
     def _callback_joystick(self, data):
-        if data.buttons[0] and self.end == False: #cross button
+        if data.buttons[1] and self.end == False: #cross button
             self.end = True 
             print("stop compliant controller")
+        if data.buttons[2] and self.start == False:
+            self.start = True
+            print("start compliant controller")
             
     def _callback_record(self, msg):
         self.target = msg.relative_target
@@ -78,6 +82,27 @@ class TrackerCompliant():
             self.q_d_list = self.data_recording["q"]
             self.pose_base = self.data_recording["base_pose"]
             
+    def start_compliant_mode(self):
+        print("Making the robot compliant, do not press any joystick-keys!!")
+        mode = Bool()
+        self.start = False
+        mode.data = True
+        self.pub_mode.publish(mode)
+        time.sleep(15)
+        self.desired_q = self.q_current
+        print("--- Compliant mode ready ---")
+        print("To stop the compliant mode, press the circle-button on the joystick")
+        print("Always stop the compliant mode, before doing ctrl+C")
+        
+    def stop_compliant_mode(self):
+        mode = Bool()
+        mode.data = False
+        self.end = False
+        self.pub_mode.publish(mode)
+        #exit
+        time.sleep(2)
+        print(" --- Compliant mode stopped ---")
+        print("To start the compliant mode, press the square-button on the joystick")
             
     def run(self):
         time.sleep(7)
@@ -89,14 +114,8 @@ class TrackerCompliant():
             self.stiffness_enabled = True
         
         # check if compliant mode is activated, otherwise active:
-        if self.mode != "LLC_task":
-            print("Making the robot compliant, do not press any keys!!")
-            mode = Bool()
-            mode.data = True
-            self.pub_mode.publish(mode)
-            time.sleep(15)
-            self.desired_q = self.q_current
-            print("You can press keys now!!!")
+        if self.mode != "LLC_task" and self.start:
+            self.start_compliant_mode()
             
         if self.mode == "LLC_task" and self.TARGET_RESET == False: # and self.target != None:
             self.publish_desired_joints()
@@ -104,12 +123,7 @@ class TrackerCompliant():
         
         # if "X" button pressed on joystick, the compliant mode is deactivated:
         if self.end:
-            mode = Bool()
-            mode.data = False
-            self.pub_mode.publish(mode)
-            #exit
-            time.sleep(2)
-            exit()
+            self.stop_compliant_mode()
         
 if __name__ == '__main__':
     state_recorder = TrackerCompliant()

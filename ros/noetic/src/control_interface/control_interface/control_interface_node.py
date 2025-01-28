@@ -53,11 +53,8 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/desired_pose", Pose, self.desired_pose_target_callback, queue_size=10)
         rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
         rospy.Subscriber("compliant/fk/current_pose", PoseStamped, self.fk_callback, queue_size=10)
-        if self.base_compliant:
-            self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
-            rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
-        else:
-            self.base_vicon_pose= [0, 0, 0]
+        self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
+        rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
         self.lidar = rospy.get_param('lidar', False)
         
         self.automove_target = False
@@ -204,22 +201,20 @@ class ControlInterfaceNode:
         msg = Record()
         pos_x = list(self.state.x)
         quat_x = list(self.state.quat)
-        pos_x[0] = pos_x[0] + list(self.base_vicon_pose)[0]
-        pos_x[1] = pos_x[1] + list(self.base_vicon_pose)[1]
-        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose)[2])
         if self.lidar:
-            pos_x2[2] = pos_x2[2] + self.platform_lidar_height
+            z_correction = self.platform_lidar_height
+        else:
+            z_correction = 0.
+        pos_x2, quat_x2 = self.get_rotated_pose(pos_x, quat_x, list(self.base_vicon_pose), z_correction)
         msg.pos_x = pos_x2
-        msg.quat_x = quat_x
+        msg.quat_x = quat_x2
         if self.fk_position is not None:
             msg.pos_fk = self.fk_position
             msg.quat_fk = self.fk_orientation
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
-        if self.base_compliant:
-            msg.pose_b = list(self.base_vicon_pose)
-        else:
-            msg.pose_b = list(self.state.pose_base)
+        msg.pose_b = list(self.base_vicon_pose)
+        # msg.pose_b = list(self.state.pose_base)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
         msg.time = [time.perf_counter()]
@@ -330,7 +325,6 @@ class ControlInterfaceNode:
         
     def callback_emergency_switch(self, msg: Joy):
         if msg.buttons[4]:
-            print("You are pressing the emergency button!")
             self.emergency_switch_pressed = True
             self.state.controller.return_emergency_switched_pressed(True)
         else:
@@ -388,19 +382,26 @@ class ControlInterfaceNode:
         """Start node spinning."""
         rospy.spin()
         
-    def get_rotated_pose(self, pos_x, quat_x, theta):
+    def get_rotated_pose(self, pos_x, quat_x, xytheta_base, z_correction=0):
         """
         Creates a 3x3 rotation matrix for a rotation around the z-axis.
         """
-        rotation_matrix_base = np.array([
-            [np.cos(theta), -np.sin(theta), 0],
-            [np.sin(theta), np.cos(theta),  0],
-            [0,             0,              1]
+        theta = xytheta_base[2]
+        T_base = np.array([
+            [np.cos(theta), -np.sin(theta), 0,      xytheta_base[0]],
+            [np.sin(theta), np.cos(theta),  0,      xytheta_base[1]],
+            [0,             0,              1,      z_correction],
+            [0,             0,              0,      1]
         ])
+        rotation_matrix_base = T_base[:3, :3]
         quaternion_base = rotMatrix_to_quaternion(rotation_matrix_base)
-        pos_x = rotation_matrix_base @ pos_x
+        pos_x_long = np.append(np.array(pos_x), np.array([1]))
+        pos_x = (T_base @ pos_x_long)[:3]
+        # R_ee = R.from_quat(quat_x).as_matrix()
+        # R_ee_in_world = rotation_matrix_base @ R_ee
+        # QUAT_X = rotMatrix_to_quaternion(R_ee_in_world)
         quat_x = self.state.controller.quat_product(quaternion_base, quat_x)
-        return pos_x, quat_x
+        return list(pos_x), quat_x
 
 def main(args: any = None):
     """Main."""
