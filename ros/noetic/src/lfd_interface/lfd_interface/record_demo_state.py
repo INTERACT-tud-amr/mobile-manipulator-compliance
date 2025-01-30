@@ -7,7 +7,6 @@ from user_interface_msg.msg import Record, Ufdbk
 from sensor_msgs.msg import Joy
 from std_msgs.msg import Bool
 from scipy.signal import butter, filtfilt, decimate
-import numpy as np
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
@@ -25,8 +24,10 @@ class StateRecorder:
         self.q, self.q_dot, self.time_prev = None, None, None
         self.x_pos, self.x_orient = None, None
         self.pos_fk, self.quat_fk = None, None
+        self.base_pose, self.base_vel = None, None
         self.q_history, self.q_dot_history, self.time_history= [], [], []
-        self.x_pos_history, self.x_quat_history, self.base_pose_history= [], [], []
+        self.x_pos_history, self.x_quat_history = [], []
+        self.base_pose_history, self.base_vel_history = [], []
         self.relative_target_history, self.absolute_target_history = [], []
         self.pos_fk_history, self.quat_fk_history = [], []
         self.joystick_data = None
@@ -43,6 +44,7 @@ class StateRecorder:
         self.x_pos = data.pos_x
         self.x_quat = data.quat_x
         self.base_pose = data.pose_b
+        self.base_vel = data.vel_b
         self.time = data.time[0]
         self.relative_target = data.relative_target
         self.absolute_target = data.absolute_target
@@ -61,16 +63,17 @@ class StateRecorder:
             print("recording ended")
     
     def _append_state(self):
-        self.q_history.append(np.array(self.q))
-        self.q_dot_history.append(np.array(self.q_dot))
-        self.x_pos_history.append(np.array(self.x_pos))
-        self.x_quat_history.append(np.array(self.x_quat))
+        self.q_history.append(self.q)
+        self.q_dot_history.append(self.q_dot)
+        self.x_pos_history.append(self.x_pos)
+        self.x_quat_history.append(self.x_quat)
         self.pos_fk_history.append(self.pos_fk)
         self.quat_fk_history.append(self.quat_fk)
-        self.base_pose_history.append(np.array(self.base_pose))
-        self.time_history.append(np.array(self.time))
-        self.relative_target_history.append(np.array(self.relative_target))
-        self.absolute_target_history.append(np.array(self.absolute_target))
+        self.base_pose_history.append(self.base_pose)
+        self.base_vel_history.append(self.base_vel)
+        self.time_history.append(self.time)
+        self.relative_target_history.append(self.relative_target)
+        self.absolute_target_history.append(self.absolute_target)
         
     # def low_pass_filter(self, data, cutoff, fs, order=4):
     #     print("len data: ", len(data))
@@ -98,6 +101,7 @@ class StateRecorder:
                       "pos_fk": self.pos_fk_history,
                       "quat_fk": self.quat_fk_history,
                       "base_pose": self.base_pose_history,
+                      "base_vel": self.base_vel_history,
                       "time": self.time_history,
                       "relative_target": self.relative_target_history,
                       "absolute_target": self.absolute_target_history}

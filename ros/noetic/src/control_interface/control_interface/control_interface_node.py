@@ -54,6 +54,7 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=10)
         rospy.Subscriber("compliant/fk/current_pose", PoseStamped, self.fk_callback, queue_size=10)
         self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
+        self.base_vicon_velocity=[0, 0, 0]
         rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=10)
         self.lidar = rospy.get_param('lidar', False)
         
@@ -214,7 +215,7 @@ class ControlInterfaceNode:
         msg.pos_q = list(self.state.kinova_feedback.q)
         msg.vel_q = list(self.state.kinova_feedback.dq)
         msg.pose_b = list(self.base_vicon_pose)
-        # msg.pose_b = list(self.state.pose_base)
+        msg.vel_b = list(self.base_vicon_velocity)
         msg.relative_target = list(self.state.target)
         msg.absolute_target = list(self.state.absolute_target)
         msg.time = [time.perf_counter()]
@@ -322,6 +323,7 @@ class ControlInterfaceNode:
     def vicon_base_callback(self, msg: JointState):
         # this pose is (x, y, theta)
         self.base_vicon_pose = msg.position[0:3]
+        self.base_vicon_velocity = msg.velocity[:3]
         
     def callback_emergency_switch(self, msg: Joy):
         if msg.buttons[4]:
