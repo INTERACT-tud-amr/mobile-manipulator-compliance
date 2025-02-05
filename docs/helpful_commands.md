@@ -24,3 +24,7 @@ If you just want to make the robot compliant (without doing a recording):
 rostopic pub /dingo2/compliant/make_compliant True #don't forget to make it uncompliant again before doing ctrl+c)
 ```
 
+You can also set the stiffness:
+```bash
+rostopic pub /dingo2/compliant/set_stiffness .....
+```
