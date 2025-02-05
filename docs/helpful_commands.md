@@ -7,7 +7,7 @@ This makes the kinova compliant, but the base not compliant.
 roslaunch launcher dinova_bringup_compliant.launch lidar:=False
 ```
 
-If you want a more simple version (without vicon) just making the kinova-arm or kinova-arm+base compliant:
+If you want a more simple version for kinova-arm or kinova-arm+base: without vicon, without compliant mode active at start (but it can be activated via topic or script):
 ```bash
 roslaunch launcher robot_lfd.launch lidar:=False #base and arm
 roslaunch launcher robot_lfd_kinova.launch lidar:=False #only arm
