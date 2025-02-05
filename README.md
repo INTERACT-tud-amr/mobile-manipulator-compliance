@@ -13,16 +13,10 @@ As robots transition from industrial settings to human-centered spaces, integrat
 
 We leverage the direct correlation between the actuator current and the resulting joint torque, overcoming the typical reliance of impedance control on torque sensors. Additionally, this paper presents two operational modes for interacting with the mobile manipulator: one for guiding the robot around the workspace through interacting with the arm and another for executing a tracking task, both maintaining compliance to external forces.
 
-## Installation
-This requires the installation of the following:
-```bash
-To add!
-```
-
-If you would like to run the controller in docker: check out the original repository: [here](https://github.com/tud-amr/mobile-manipulator-compliance)
-
 ## Application on the Robot
 Instructions are provided [here](/docs/application_on_robot.md).
+
+If you would like to run the controller in docker: check out the original repository: [here](https://github.com/tud-amr/mobile-manipulator-compliance)
 
 ## Helpful commands
 Instructions are provided [here](/docs/helpful_commands.md)
