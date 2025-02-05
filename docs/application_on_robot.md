@@ -31,7 +31,6 @@ cd python/compliance_control/control/symbolics
 bash compile
 
 # ros:
-rm -r ros/humble #remove humble installation --> just to be sure
 cd ros/noetic
 catkin_make #local catkin_make
 cd ../..
@@ -47,37 +46,10 @@ The lights on the front of the robot will become red.
 
 
 ### Run controller
-Adapt the export file to have the IP address of your robot. 
-
-On the robot start the docker:
+Run the controller:
 ```bash
-cd docker
-bash run
+roslaunch launcher dinova_bringup_compliant.launch
+# Before doing ctrl+c, STOP the compliant mode, press the cross button on the dingo-joystick
 ```
-and run the controller:
-```bash
-. export
-roslaunch launcher robot_control_interface.launch
-```
-On your laptop also start the docker and run:
-```bash
-. export
-roslaunch launcher robot_user_interface.launch
-```
-This will run the guidance mode. To run the tracking mode we make use of an optical tracking system. 
-
-When switching between the control modes restart the user interface.
-
-
-
-### Interacting with the visualization tool
-Start LLC as described in the simulation section. Turn on gravity compensation and friction compensation. Then select `<arm>` starts the impedance controller on the arm, `<null>` to turn on the nullspace controller, and `<base>` to turn on the base.
-
-Top stop turn off LLC `<Stop LCC Task>`, `<Stop LCC>` and go into the preffered position `<Pref>` then esc. It is preffered to turn the robot off in high-leve control.
-
-
-
-
-## Helpful Information
-If the arm reaches a joint limit, `<stop LLC Task?` and `<stop LLC?` and then press `<clear?`.
+For more commands, see [here](/docs/helpful_commands.md)
 
