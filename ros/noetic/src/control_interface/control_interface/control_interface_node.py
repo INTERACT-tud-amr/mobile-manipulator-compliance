@@ -16,7 +16,7 @@ from compliant_control.dingo.dingo_driver import DingoDriver
 from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
 
-from compliant_control.control.calibration import Calibration
+# from compliant_control.control.calibration import Calibration
 from sensor_msgs.msg import Joy
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
 
@@ -40,7 +40,7 @@ class ControlInterfaceNode:
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=10)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=10)
         self.pub_record = rospy.Publisher("compliant/record", Record, queue_size=10)
-        self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
+        # self.pub_calibration = rospy.Publisher("compliant/calibration", Data, queue_size=10)
         self.pub_current_pose = rospy.Publisher("compliant/current_pose", PoseStamped, queue_size=1)
         self.pub_joint_states = rospy.Publisher("kinova/joint_states", JointState, queue_size=1)
         rospy.Subscriber("bluetooth_teleop/joy", Joy, self.callback_emergency_switch)
@@ -124,10 +124,10 @@ class ControlInterfaceNode:
                 self.state, router=router, real_time_router=real_time_router
             )
             self.kinova.log = rospy.loginfo
-            self.calibration = Calibration(
-                self.state, self.kinova, self.publish_calibration
-            )
-            self.calibration.log = rospy.loginfo
+            # self.calibration = Calibration(
+            #     self.state, self.kinova, self.publish_calibration
+            # )
+            # self.calibration.log = rospy.loginfo
             signal.signal(signal.SIGINT, self.kinova.stop)
             self.kinova.start()
 
@@ -138,10 +138,10 @@ class ControlInterfaceNode:
         self.kinova = KortexClientSimulation(self.state, self.simulation)
         self.kinova.log = rospy.loginfo
         self.kinova.start_in_new_thread()
-        self.calibration = Calibration(
-            self.state, self.kinova, self.publish_calibration
-        )
-        self.calibration.log = rospy.loginfo
+        # self.calibration = Calibration(
+        #     self.state, self.kinova, self.publish_calibration
+        # )
+        # self.calibration.log = rospy.loginfo
         self.start_threads()
         self.simulation.start()
 
@@ -220,11 +220,11 @@ class ControlInterfaceNode:
         msg.time = [time.perf_counter()]
         self.pub_record.publish(msg)
 
-    def publish_calibration(self, data: np.ndarray) -> None:
-        """Publish the data."""
-        msg = Data()
-        msg.data = list(data)
-        self.pub_calibration.publish(msg)
+    # def publish_calibration(self, data: np.ndarray) -> None:
+    #     """Publish the data."""
+    #     msg = Data()
+    #     msg.data = list(data)
+    #     self.pub_calibration.publish(msg)
 
     def handle_input(self, msg: Ucmd) -> None:
         """Handle user input."""
@@ -274,8 +274,8 @@ class ControlInterfaceNode:
         elif cmd == "Move Dingo":
             self.state.controller.reset_base_command()
             self.state.controller.command_base_direction(msg.args, 0.6)
-        elif cmd == "Calibrate":
-            self.calibration.calibrate_all()
+        # elif cmd == "Calibrate":
+        #     self.calibration.calibrate_all()
         else:
             print(f"Service call {cmd} is unknown.")
         self.publish_state()
