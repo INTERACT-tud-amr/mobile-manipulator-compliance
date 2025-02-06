@@ -10,7 +10,7 @@ Clone the repository including its submodules on the robot and follow the steps 
 ### Installation without docker on the robot:
 ```bash
 # clone repo, make python package
-git clone git@github.com:tud-amr/mobile-manipulator-compliance.git --recurse-submodules
+git@github.com:INTERACT-tud-amr/mobile-manipulator-compliance.git --recurse-submodules
 pip install -e python
 
 #required sudo dependencies!!!!
