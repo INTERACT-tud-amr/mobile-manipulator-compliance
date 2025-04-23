@@ -17,7 +17,7 @@ has to be run beforehand:
 
 
 class TrackerCompliant():
-    def __init__(self):
+    def __init__(self, args):
         # -- parameters --#
         robot_name = "dingo2"
         rospy.init_node("make_compliant_node")
@@ -29,7 +29,10 @@ class TrackerCompliant():
         self.end = False
         self.TARGET_RESET = False
         self.target = None
+        print("args:", args)
         self.stiffness_enabled = False
+        self.stiffness_enabled = "--full_soft" in args
+        print("self.stiffness_enabled:", self.stiffness_enabled)
         self.mode = "Unknown"
         
         # -- subscribers -- 
@@ -92,7 +95,7 @@ class TrackerCompliant():
         self.desired_q = self.q_current
         print("--- Compliant mode ready ---")
         print("To stop the compliant mode, press the circle-button on the joystick")
-        print("Always stop the compliant mode, before doing ctrl+C")
+        print("!!!! ALWAYS STOP THE COMPLIANT MODE, BEFORE DOING ctrl+C !!!!")
         
     def stop_compliant_mode(self):
         mode = Bool()
@@ -126,7 +129,8 @@ class TrackerCompliant():
             self.stop_compliant_mode()
         
 if __name__ == '__main__':
-    state_recorder = TrackerCompliant()
+    args = rospy.myargv(argv=sys.argv)
+    state_recorder = TrackerCompliant(args=args)
     rate = rospy.Rate(100)
     rospy.sleep(0.1)
     while not rospy.is_shutdown():

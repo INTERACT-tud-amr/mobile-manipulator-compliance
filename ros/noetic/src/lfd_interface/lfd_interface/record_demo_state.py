@@ -20,14 +20,13 @@ class StateRecorder:
         self.save_id = save_id
         self.start = False
         self.end = False
+        self.first_iteration = True
         self.mode = "Unknown"
         self.q, self.q_dot, self.time_prev = None, None, None
         self.x_pos, self.x_orient = None, None
-        self.pos_fk, self.quat_fk = None, None
         self.q_history, self.q_dot_history, self.time_history= [], [], []
         self.x_pos_history, self.x_quat_history, self.base_pose_history= [], [], []
         self.relative_target_history, self.absolute_target_history = [], []
-        self.pos_fk_history, self.quat_fk_history = [], []
         self.joystick_data = None
         
         #Create ROS subscriber
@@ -45,27 +44,23 @@ class StateRecorder:
         self.time = data.time
         self.relative_target = data.relative_target
         self.absolute_target = data.absolute_target
-        self.pos_fk = data.pos_fk
-        self.quat_fk = data.quat_fk
         
     def _callback_feedback_mode(self, data):
         self.mode = data.mode
     
     def _callback_joystick(self, data):
-        if data.buttons[3] and self.start == False: #triangle button
-            self.start = True
-            print("recording started")
         if data.buttons[0] and self.end == False: #cross button
             self.end = True 
             print("recording ended")
+        if data.buttons[3] and self.start == False: #triangle button
+            self.start = True
+            print("recording started")
     
     def _append_state(self):
         self.q_history.append(self.q)
         self.q_dot_history.append(self.q_dot)
         self.x_pos_history.append(self.x_pos)
         self.x_quat_history.append(self.x_quat)
-        self.pos_fk_history.append(self.pos_fk)
-        self.quat_fk_history.append(self.quat_fk)
         self.base_pose_history.append(self.base_pose)
         self.time_history.append(self.time)
         self.relative_target_history.append(self.relative_target)
@@ -94,8 +89,6 @@ class StateRecorder:
                       "q_dot": self.q_dot_history,
                       "x_pos": self.x_pos_history,
                       "x_quat": self.x_quat_history,
-                      "pos_fk": self.pos_fk_history,
-                      "quat_fk": self.quat_fk_history,
                       "base_pose": self.base_pose_history,
                       "time": self.time_history,
                       "relative_target": self.relative_target_history,
@@ -111,8 +104,8 @@ class StateRecorder:
             pickle.dump(trajectory, file)
             
         # also save downsampled trajectory
-        position_downsample, orientation_downsample = self.filter_data(position_noisy=self.pos_fk_history, 
-                                                    orientation_noisy=self.quat_fk_history, 
+        position_downsample, orientation_downsample = self.filter_data(position_noisy=self.x_pos_history, 
+                                                    orientation_noisy=self.x_quat_history, 
                                                     fs=frequency)
         trajectory["pos_fk_downsample"] = position_downsample
         trajectory["quat_fk_downsample"] = orientation_downsample
@@ -128,23 +121,38 @@ class StateRecorder:
             self.pub_mode.publish(mode)
             time.sleep(15)
             print("You can press keys now!!!")
+            
+        if self.first_iteration:
+            print("To start a recording press: triangle button")
+            print("To stop a recording press: cross button")
+            self.first_iteration = False
         
         if self.start:
             #Append state to trajectory
             self._append_state()
             
         if self.end:
-            mode = Bool()
-            mode.data = False
-            self.pub_mode.publish(mode)
             #Save trajectory and exit
             self._save_trajectory(frequency=frequency)
+            print("When done with all recordings, press the CIRCLE-button to stop the compliant mode")
             time.sleep(2)
             exit()
+            
+        # if self.stop_compliant:
+        #     mode = Bool()
+        #     mode.data = False
+        #     self.pub_mode.publish(mode)
+        #     time.sleep(2)
+        #     exit()
+
         
     
 if __name__ == '__main__':
     rospy.init_node('state_recorder')
+    if len(sys.argv) < 3:
+        print("Please provide the robot name and save_id as arguments.")
+        print("Example: python3 record_demo_state.py dingo1 0")
+        sys.exit(1)
     state_recorder = StateRecorder(sys.argv[1], save_id=sys.argv[2])
     frequency = 100
     rate = rospy.Rate(frequency)
