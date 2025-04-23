@@ -18,6 +18,7 @@ Use the buttons on the dinova controller to start and stop a recording:
 class StateRecorder:
     def __init__(self, robot_name, save_id):
         self.save_id = save_id
+        self.robot_name = robot_name
         self.start = False
         self.end = False
         self.first_iteration = True
@@ -85,6 +86,7 @@ class StateRecorder:
         
     def _save_trajectory(self, frequency=100):
         #Create dictionary
+        urdf = rospy.get_param(self.robot_name + "/dinova_fk_description")
         trajectory = {"q": self.q_history,
                       "q_dot": self.q_dot_history,
                       "x_pos": self.x_pos_history,
@@ -92,7 +94,8 @@ class StateRecorder:
                       "base_pose": self.base_pose_history,
                       "time": self.time_history,
                       "relative_target": self.relative_target_history,
-                      "absolute_target": self.absolute_target_history}
+                      "absolute_target": self.absolute_target_history,
+                      "urdf": urdf}
         #Save dictionary
         file_name = "recording_demonstration_" + self.save_id + ".pk"
         folder_path = "demonstrations"
@@ -137,14 +140,6 @@ class StateRecorder:
             print("When done with all recordings, press the CIRCLE-button to stop the compliant mode")
             time.sleep(2)
             exit()
-            
-        # if self.stop_compliant:
-        #     mode = Bool()
-        #     mode.data = False
-        #     self.pub_mode.publish(mode)
-        #     time.sleep(2)
-        #     exit()
-
         
     
 if __name__ == '__main__':

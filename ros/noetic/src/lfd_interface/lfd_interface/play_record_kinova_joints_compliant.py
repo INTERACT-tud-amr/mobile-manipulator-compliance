@@ -21,6 +21,7 @@ class TrackerCompliant():
         # -- parameters --#
         self.robot_name = robot_name
         self.q_current = [0] * 6
+        self.desired_q = self.q_current
         self.Kq = np.diag([6., 40., 6., 1., 1., 1])
         self.Dq = np.eye(6) * 1
         self.desired_pose_offset = [0., 0., 0.1]
@@ -142,7 +143,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         arg2 = sys.argv[2]
     else:
-        arg2 = "recording_demonstration_11"
+        arg2 = "recording_demonstration_1"
     state_recorder = TrackerCompliant(sys.argv[1], file_name_recording=arg2)
     rate = rospy.Rate(50)
     rospy.sleep(0.1)

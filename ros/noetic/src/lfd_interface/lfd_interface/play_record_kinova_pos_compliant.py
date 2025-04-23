@@ -136,7 +136,7 @@ if __name__ == '__main__':
     if len(sys.argv) > 2:
         arg2 = sys.argv[2]
     else:
-        arg2 = "recording_demonstration_13"
+        arg2 = "recording_demonstration_1"
     state_recorder = TrackerCompliant(sys.argv[1], file_name_recording=arg2)
     rate = rospy.Rate(30)
     rospy.sleep(0.1)
