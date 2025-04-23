@@ -1,10 +1,46 @@
 <?xml version="1.0"?>
 <launch>
-    <!-- Velodyne lidar -->
+    <!-- Dingo params: Dont change! -->
+    <arg name="motor_params" default="$(optenv DINGO_MOTOR_PARAMS base)" />
+    <arg name="config" default="$(optenv DINGO_CONFIG base)" />
+
+    <!-- dingo_real_urdf => There is a difference between urdf file for real dingo and the one in gazebo/control (wheel vs [x,y,theta]).
+                        For Gazebo set it to false -->
+    <arg name="dingo_real_urdf" default="true" />
+    <arg name="load_gripper" default="true" />
     <arg name="lidar" default="false"/>
+    <arg name="vicon" default="true" />
+    <arg name="vicon_config_file" default="$(find dinova_bringup)/config/vicon_$(env ROBOT_NAME).yaml"/>
+    <arg name="root_link" default="arm_base_link"/>
+    <arg name="end_link" default="arm_tool_frame"/>
+    <arg name="robot_type" default="kinova"/>
 
     <group ns="$(env ROBOT_NAME)">
         <param name="lidar" value="$(arg lidar)" />
+        <param name="robot_name" value="$(env ROBOT_NAME)" />
+        <param name="root_link" value="$(arg root_link)" />
+        <param name="end_link" value="$(arg end_link)" />
+        <param name="robot_type" value="$(arg robot_type)" />
+
+        <!-- Vicon -->
+        <param name="vicon/use_vicon" type="bool" value="$(arg vicon)" />
+        <param name="vicon/dingo_topic" type="string" value="/vicon/$(env ROBOT_NAME)" />
+
+        <!-- Robot model -->
+        <param name="robot_description" command="$(find xacro)/xacro '$(find dinova_description)/urdf/dinova.xacro'
+                    dingo_real_urdf:=$(arg dingo_real_urdf)
+                    load_gripper:=$(arg load_gripper)
+                    lidar:=$(arg lidar)
+                    robot_name:=$(env ROBOT_NAME)"/>
+
+        <group if="$(arg lidar)">
+            <param name="dinova_fk_description" textfile="$(find dinova_control)/config/$(env ROBOT_NAME)_dinova_lidar.urdf"/>
+            <param name="fk_library" value="libfk_$(env ROBOT_NAME)_kinova_lidar.so" />
+        </group>
+        <group unless="$(arg lidar)">
+            <param name="dinova_fk_description" textfile="$(find dinova_control)/config/$(env ROBOT_NAME)_dinova.urdf"/>
+            <param name="fk_library" value="libfk_$(env ROBOT_NAME)_kinova.so" />
+        </group>
 
         <!-- Compliant control (use argument base to also enable base compliance)-->
         <node name="control_interface_node" pkg="control_interface" type="control_interface_node.py" args="--base_on" output="screen"/>
@@ -15,7 +51,6 @@
         <!-- Battery checking -->
         <node pkg="dinova_bringup" type="battery_checker" name="battery_checker"/>
 
-        <!-- Forward kinematics symbolic -->
-        <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
+        <node name="make_compliant_node" pkg="control_interface" type="make_compliant_node.py" args="--full_soft" output="screen"/>
     </group>
 </launch>

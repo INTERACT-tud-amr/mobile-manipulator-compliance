@@ -4,6 +4,7 @@ import os
 import time
 import signal
 import sys
+import copy
 from geometry_msgs.msg import PoseStamped, Pose
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float32MultiArray, Bool
@@ -15,10 +16,12 @@ from compliant_control.control.state import State
 from compliant_control.dingo.dingo_driver import DingoDriver
 from compliant_control.kinova.kortex_client import KortexClient
 from compliant_control.kinova.utilities import DeviceConnection
+from dinova_control.dinova_fk import FK_Autogen
 
 # from compliant_control.control.calibration import Calibration
 from sensor_msgs.msg import Joy
 from user_interface_msg.msg import Ufdbk, Ucmd, Ustate, Utarget, Record, Data
+from derived_object_msgs.msg import Object, ObjectArray
 
 PUBLISH_RATE = 100
 D_MAX_RESET = 0.01
@@ -36,6 +39,8 @@ class ControlInterfaceNode:
         self.platform_lidar_height = 0.314 #now hardcoded, should be imported from dinova.xacro in dinova_description
         self.emergency_switch_pressed = False
         self.fk_position = None
+        self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
+        self.lidar = rospy.get_param('lidar', False)
         
         self.pub_fdbk = rospy.Publisher("compliant/feedback", Ufdbk, queue_size=1)
         self.pub_state = rospy.Publisher("compliant/state", Ustate, queue_size=1)
@@ -54,10 +59,15 @@ class ControlInterfaceNode:
         rospy.Subscriber("compliant/desired_joints", JointState, self.desired_joints_target_callback, queue_size=1)
         
         self.robot_type = rospy.get_param("robot_type", "dinova")
-        rospy.Subscriber(self.robot_type+"/fk_endeffector", PoseStamped, self.fk_callback, queue_size=1)
-        self.base_vicon_pose= [0, 0, 0] #[x, y, theta]
-        rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=1)
-        self.lidar = rospy.get_param('lidar', False)
+        if self.robot_type == "kinova":
+            self.lib_name = rospy.get_param("fk_library")
+            self._robot_fk_autogen = FK_Autogen(self.lib_name)
+            self._end_link  = self._robot_fk_autogen.get_endeffector_name()
+            self.pub_robot_fk = rospy.Publisher(self.robot_type+'/fk_links', ObjectArray, queue_size=1)
+            self.pub_robot_endeffector_fk = rospy.Publisher(self.robot_type+'/fk_endeffector', PoseStamped, queue_size=1)
+        else:
+            rospy.Subscriber(self.robot_type+"/fk_endeffector", PoseStamped, self.fk_callback, queue_size=1)
+            rospy.Subscriber("dinova/omni_states_vicon", JointState, self.vicon_base_callback, queue_size=1)
         
         self.automove_target = False
         self.state = State(self.simulate)
@@ -154,10 +164,20 @@ class ControlInterfaceNode:
         rospy.loginfo("READY!")
         while True:
             self.publish_feedback()
+            if self.robot_type == "kinova":
+                self.kinova_fk()
             self.publish_record()
             self.publish_pose()
             self.publish_joint_state()
             time.sleep(1 / PUBLISH_RATE)
+            
+    def kinova_fk(self):
+        q_act = np.asarray(copy.deepcopy(self.state.kinova_feedback.q))
+        pose_W_dict = self._robot_fk_autogen.compute_fk(q_act)
+        self.fk_position = [pose_W_dict[self._end_link].position.x, pose_W_dict[self._end_link].position.y, pose_W_dict[self._end_link].position.z]
+        self.fk_orientation = [pose_W_dict[self._end_link].orientation.x, pose_W_dict[self._end_link].orientation.y, pose_W_dict[self._end_link].orientation.z, pose_W_dict[self._end_link].orientation.w]
+        self.publish_FK_endeffector(pose_W_dict=pose_W_dict)
+        self.publish_FK_links(pose_W_dict=pose_W_dict)
 
     def publish_feedback(self) -> None:
         """Publish feedback."""
@@ -405,6 +425,25 @@ class ControlInterfaceNode:
         # QUAT_X = rotMatrix_to_quaternion(R_ee_in_world)
         quat_x = self.state.controller.quat_product(quaternion_base, quat_x)
         return list(pos_x), quat_x
+    
+    def publish_FK_endeffector(self, pose_W_dict: dict):
+        pose_W_EEF = pose_W_dict[self._end_link]
+        endeffector_pose = PoseStamped()
+        endeffector_pose.header.frame_id = self._end_link
+        endeffector_pose.pose = pose_W_EEF
+        
+        self.pub_robot_endeffector_fk.publish(endeffector_pose)
+
+    def publish_FK_links(self, pose_W_dict: dict):
+        object_array = ObjectArray()
+        object_array.header.stamp = rospy.Time.now()
+        for link_name, transf in pose_W_dict.items():
+            obj = Object()
+            obj.header = copy.deepcopy(object_array.header)
+            obj.header.frame_id = link_name
+            obj.pose = transf
+            object_array.objects.append(obj)
+        self.pub_robot_fk.publish(object_array) 
 
 def main(args: any = None):
     """Main."""
