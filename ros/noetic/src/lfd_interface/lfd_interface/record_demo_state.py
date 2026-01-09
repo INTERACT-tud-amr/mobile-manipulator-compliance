@@ -42,7 +42,7 @@ class StateRecorder:
         self.x_pos = data.pos_x
         self.x_quat = data.quat_x
         self.base_pose = data.pose_b
-        self.time = data.time
+        self.time = data.time[0]
         self.relative_target = data.relative_target
         self.absolute_target = data.absolute_target
         self.pos_fk = data.pos_fk
@@ -92,12 +92,12 @@ class StateRecorder:
         #Create dictionary
         trajectory = {"q": self.q_history,
                       "q_dot": self.q_dot_history,
-                      "x_pos": self.x_pos_history,
-                      "x_quat": self.x_quat_history,
+                      "ee_position": self.x_pos_history,
+                      "ee_quaternion": self.x_quat_history,
                       "pos_fk": self.pos_fk_history,
                       "quat_fk": self.quat_fk_history,
                       "base_pose": self.base_pose_history,
-                      "time": self.time_history,
+                      "t": self.time_history,
                       "relative_target": self.relative_target_history,
                       "absolute_target": self.absolute_target_history}
         #Save dictionary

@@ -23,6 +23,16 @@
             <param name="tf_prefix" value="$(env ROBOT_NAME)"/>
         </node>
 
+        <!-- Parameter fk_libary define (check if correct!) -->
+        <group if="$(arg lidar)">
+            <param name="dinova_fk_description" textfile="$(find dinova_control)/config/$(env ROBOT_NAME)_dinova_lidar.urdf"/>
+            <param name="fk_library" value="libfk_$(env ROBOT_NAME)_dinova_lidar.so" />
+        </group>
+        <group unless="$(arg lidar)">
+            <param name="dinova_fk_description" textfile="$(find dinova_control)/config/$(env ROBOT_NAME)_dinova.urdf"/>
+            <param name="fk_library" value="libfk_$(env ROBOT_NAME)_dinova.so" />
+        </group>
+
         <!-- DINGO Nodes -->
 
         <node pkg="rosserial_python" type="message_info_service.py" name="rosserial_message_info" />

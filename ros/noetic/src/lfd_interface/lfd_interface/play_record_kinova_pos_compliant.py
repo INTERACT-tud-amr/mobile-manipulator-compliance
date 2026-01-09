@@ -85,7 +85,7 @@ class TrackerCompliant():
         pickle_file_path = os.path.join(folder_path, file_name)
         with open(pickle_file_path, 'rb') as file:
             self.data_recording = pickle.load(file)
-            self.pos_d_list = self.data_recording["x_pos"]
+            self.pos_d_list = self.data_recording["ee_position"]
             self.pose_base = [0., 0., 0.] #self.data_recording["base_pose"]
             
     def run(self):
