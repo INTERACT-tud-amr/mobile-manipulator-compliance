@@ -5,6 +5,7 @@ import sys
 import os
 from user_interface_msg.msg import Record, Ufdbk
 from sensor_msgs.msg import Joy
+from geometry_msgs.msg import PoseStamped
 from std_msgs.msg import Bool
 from scipy.signal import butter, filtfilt, decimate
 
@@ -28,10 +29,14 @@ class StateRecorder:
         self.x_pos_history, self.x_quat_history, self.base_pose_history= [], [], []
         self.relative_target_history, self.absolute_target_history = [], []
         self.pos_fk_history, self.quat_fk_history = [], []
+        self.fk_endeffector_pos, self.fk_endeffector_quat = None, None
+        self.fk_endeffector_pos_history, self.fk_endeffector_quat_history = [], []
         self.joystick_data = None
-        
+        robot_type = rospy.get_param("%s/robot_type" % robot_name)
+
         #Create ROS subscriber
         rospy.Subscriber('%s/compliant/record' % robot_name, Record, self._callback_state, queue_size=10)
+        rospy.Subscriber('%s/%s/fk_endeffector' % (robot_name, robot_type), PoseStamped, self._callback_fk_endeffector, queue_size=10)
         rospy.Subscriber('%s/compliant/feedback' % robot_name, Ufdbk, self._callback_feedback_mode, queue_size=10)
         rospy.Subscriber('%s/bluetooth_teleop/joy' % robot_name, Joy, self._callback_joystick, queue_size=10)
         self.pub_mode = rospy.Publisher("%s/compliant/make_compliant" % robot_name, Bool, queue_size=1)
@@ -47,6 +52,10 @@ class StateRecorder:
         self.absolute_target = data.absolute_target
         self.pos_fk = data.pos_fk
         self.quat_fk = data.quat_fk
+        
+    def _callback_fk_endeffector(self, data):
+        self.fk_endeffector_pos = [data.pose.position.x, data.pose.position.y, data.pose.position.z]
+        self.fk_endeffector_quat = [data.pose.orientation.x, data.pose.orientation.y, data.pose.orientation.z, data.pose.orientation.w]
         
     def _callback_feedback_mode(self, data):
         self.mode = data.mode
@@ -66,6 +75,8 @@ class StateRecorder:
         self.x_quat_history.append(self.x_quat)
         self.pos_fk_history.append(self.pos_fk)
         self.quat_fk_history.append(self.quat_fk)
+        self.fk_endeffector_pos_history.append(self.fk_endeffector_pos)
+        self.fk_endeffector_quat_history.append(self.fk_endeffector_quat)
         self.base_pose_history.append(self.base_pose)
         self.time_history.append(self.time)
         self.relative_target_history.append(self.relative_target)
@@ -96,6 +107,8 @@ class StateRecorder:
                       "ee_quaternion": self.x_quat_history,
                       "pos_fk": self.pos_fk_history,
                       "quat_fk": self.quat_fk_history,
+                      "fk_endeffector_pos": self.fk_endeffector_pos_history,
+                      "fk_endeffector_quat": self.fk_endeffector_quat_history,
                       "base_pose": self.base_pose_history,
                       "t": self.time_history,
                       "relative_target": self.relative_target_history,

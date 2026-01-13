@@ -3,6 +3,8 @@
     <!-- Dingo params: Dont change! -->
     <arg name="motor_params" default="$(optenv DINGO_MOTOR_PARAMS base)" />
     <arg name="config" default="$(optenv DINGO_CONFIG base)" />
+    <arg name="robot_type" default="dinova"/>
+    
 
     <!-- Velodyne lidar -->
     <arg name="lidar" default="false"/>
