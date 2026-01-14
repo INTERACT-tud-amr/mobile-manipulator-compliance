@@ -3,6 +3,8 @@
     <!-- Dingo params: Dont change! -->
     <arg name="motor_params" default="$(optenv DINGO_MOTOR_PARAMS base)" />
     <arg name="config" default="$(optenv DINGO_CONFIG base)" />
+    <arg name="root_link" default="base_link"/>
+    <arg name="end_link" default="arm_tool_frame"/>
     <arg name="robot_type" default="dinova"/>
 
     <!-- Velodyne lidar -->
@@ -14,6 +16,9 @@
     
     <group ns="$(env ROBOT_NAME)">
         <param name="lidar" value="$(arg lidar)" />
+        <param name="root_link" value="$(arg root_link)" />
+        <param name="end_link" value="$(arg end_link)" />
+        <param name="robot_type" value="$(arg robot_type)" />
         <param name="vicon/use_vicon" type="bool" value="$(arg vicon)" />
         <param name="vicon/dingo_topic" type="string" value="/vicon/$(env ROBOT_NAME)" />
 

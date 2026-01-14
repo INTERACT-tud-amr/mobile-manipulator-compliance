@@ -28,5 +28,7 @@
         <!-- Forward kinematics symbolic -->
         <node name="fk_node" pkg="control_interface" type="fk_node.py" args="" output="screen"/>
 
+        <!-- make controller compliant and set higher stiffness -->
+        <node name="position_compliant" pkg="control_interface" type="position_compliant.py" args="" output="screen"/>
     </group>
 </launch>

@@ -106,7 +106,6 @@ class TrackerCompliant():
             
     def run(self):
         time.sleep(7)
-        
         # publish pose goal
         # -- publish stiffness --
         if self.stiffness_enabled == False:
