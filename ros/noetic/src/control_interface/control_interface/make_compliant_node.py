@@ -22,7 +22,7 @@ class TrackerCompliant():
         robot_name = "dingo2"
         rospy.init_node("make_compliant_node")
         self.q_current = [0] * 6
-        self.Kq = np.diag([6., 40., 6., 1., 1., 1])
+        self.Kq = np.diag([20., 40., 6., 1., 1., 1]) #self.Kq = np.diag([6., 40., 6., 1., 1., 1])
         self.Dq = np.eye(6) * 0.001
         self.desired_pose_offset = [0., 0., 0.1]
         self.start = True

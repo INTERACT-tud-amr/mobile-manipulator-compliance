@@ -28,8 +28,8 @@ class FKNode():
             agent_name = "dinova_lidar"
         else:
             agent_name = "dinova"
-        URDF_FILE = rospack.get_path("dinova_fabrics_wrapper") + "/config/" + agent_name + ".urdf"
-        self.symbolic_fk(URDF_FILE)
+        # URDF_FILE = rospack.get_path("dinova_fabrics_wrapper") + "/config/" + agent_name + ".urdf"
+        # self.symbolic_fk(URDF_FILE)
         
         # --- subscriber ---#
         if self.robot_type == "dinova":
@@ -42,7 +42,7 @@ class FKNode():
         self._q_kinova = [0]*self.dof
         
         # --- publisher ---#
-        self.pub_current_pose = rospy.Publisher("compliant/fk/current_pose", PoseStamped, queue_size=1)
+        # self.pub_current_pose = rospy.Publisher("compliant/fk/current_pose", PoseStamped, queue_size=1)
         
         # forward kinematics publishing
         if self.robot_type == "kinova":
@@ -90,23 +90,23 @@ class FKNode():
             object_array.objects.append(obj)
         self.pub_robot_fk.publish(object_array)     
         
-    def symbolic_fk(self, URDF_FILE) -> GenericURDFFk:
-        with open(URDF_FILE, "r", encoding="utf-8") as file:
-            urdf = file.read()
-        self.forward_kinematics = GenericURDFFk(
-            urdf,
-            root_link="base_link",
-            end_links=["arm_tool_frame"],
-        )
+    # def symbolic_fk(self, URDF_FILE) -> GenericURDFFk:
+    #     with open(URDF_FILE, "r", encoding="utf-8") as file:
+    #         urdf = file.read()
+    #     self.forward_kinematics = GenericURDFFk(
+    #         urdf,
+    #         root_link="base_link",
+    #         end_links=["arm_tool_frame"],
+    #     )
         
-    def fk_numerical(self):
-        ee_T = self.forward_kinematics.numpy(q=self._q,
-                                                parent_link = "base_link",
-                                                child_link = "arm_end_effector_link",
-                                                position_only=False)
-        ee_position = ee_T[:3, 3]
-        ee_quaternion = rotMatrix_to_quaternion(ee_T[:3, :3])
-        return ee_position, ee_quaternion
+    # def fk_numerical(self):
+    #     ee_T = self.forward_kinematics.numpy(q=self._q,
+    #                                             parent_link = "base_link",
+    #                                             child_link = "arm_end_effector_link",
+    #                                             position_only=False)
+    #     ee_position = ee_T[:3, 3]
+    #     ee_quaternion = rotMatrix_to_quaternion(ee_T[:3, :3])
+    #     return ee_position, ee_quaternion
     
     def run(self):
         while not rospy.is_shutdown():
@@ -114,8 +114,8 @@ class FKNode():
             if 'mug1' in self._object_poses:
                 self._logger.log(str(self._object_poses['mug1']))
             """
-            ee_position, ee_orientation = self.fk_numerical()
-            self.publish_pose(ee_position, ee_orientation)
+            # ee_position, ee_orientation = self.fk_numerical()
+            # self.publish_pose(ee_position, ee_orientation)
             
             # poses via forward kinematics published:
             if self.robot_type == "kinova":
