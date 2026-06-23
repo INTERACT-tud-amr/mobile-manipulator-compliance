@@ -5,9 +5,10 @@ import sys
 import os
 from user_interface_msg.msg import Record, Ufdbk
 from sensor_msgs.msg import Joy
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Pose, Point
 from std_msgs.msg import Bool
 from scipy.signal import butter, filtfilt, decimate
+from derived_object_msgs.msg import ObjectArray
 
 """
 A script to record the state (joint state + end-effector pose) of the robot.
@@ -15,6 +16,11 @@ Use the buttons on the dinova controller to start and stop a recording:
 - triangle button: start recording
 - cross button: stop recording
 """
+def _it(self):
+    yield self.x
+    yield self.y
+    yield self.z
+Point.__iter__ = _it
 
 class StateRecorder:
     def __init__(self, robot_name, save_id):
@@ -32,6 +38,10 @@ class StateRecorder:
         self.fk_endeffector_pos, self.fk_endeffector_quat = None, None
         self.fk_endeffector_pos_history, self.fk_endeffector_quat_history = [], []
         self.joystick_data = None
+        self.nr_obstacles = 2
+        self.obstacles = {"positions": [[100., 100., 100.] for _ in range(self.nr_obstacles)],
+                            "orientations": [[0., 0., 0., 1.] for _ in range(self.nr_obstacles)],
+                            "radii": [[0.1] for _ in range(self.nr_obstacles)]}
         robot_type = rospy.get_param("%s/robot_type" % robot_name)
 
         #Create ROS subscriber
@@ -40,7 +50,19 @@ class StateRecorder:
         rospy.Subscriber('%s/compliant/feedback' % robot_name, Ufdbk, self._callback_feedback_mode, queue_size=10)
         rospy.Subscriber('%s/bluetooth_teleop/joy' % robot_name, Joy, self._callback_joystick, queue_size=10)
         self.pub_mode = rospy.Publisher("%s/compliant/make_compliant" % robot_name, Bool, queue_size=1)
-        
+        rospy.Subscriber('%s/objects' % robot_name, ObjectArray, self._cb_objects, queue_size=10)
+ 
+    def _cb_objects(self, msg:ObjectArray):
+        if msg is not None:
+            #assert len(msg.objects) <= self.nr_obstacles_nonhuman, "Number of obstacles should be less or equal than 10 obstacles in <robot_name>/objects"
+            for i, obst in enumerate(msg.objects):
+                obstacles_position = list(obst.pose.position) 
+                # obstacles_orientation = list(obst.pose.orientation) 
+                # obstacles_radius = obst.shape.dimensions[0]
+                self.obstacles["positions"][i] = obstacles_position
+                # self.obstacles["orientations"][i] = obstacles_orientation
+                # self.obstacles["radii"][i] = obstacles_radius
+                
     def _callback_state(self, data):
         self.q = data.pos_q
         self.q_dot = data.vel_q
@@ -112,7 +134,9 @@ class StateRecorder:
                       "base_pose": self.base_pose_history,
                       "t": self.time_history,
                       "relative_target": self.relative_target_history,
-                      "absolute_target": self.absolute_target_history}
+                      "absolute_target": self.absolute_target_history,
+                      "obstacles_positions": self.obstacles["positions"],}
+        print("self.obstacles[positions]", self.obstacles["positions"])
         #Save dictionary
         file_name = "recording_demonstration_" + self.save_id + ".pk"
         folder_path = "demonstrations"
